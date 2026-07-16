@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hero's Journey</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">⚔</div>
+        <h1>Hero's Journey</h1>
+      </div>
+      <div class="header-right">
+        <div class="status">
+          <span class="status-count" id="status-count">0/12</span>
+          <span id="status-text">stages complete</span>
+        </div>
+        <button class="btn-new" id="btn-new">+ New Story</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="section-label">Story Stages</div>
+      <div class="grid" id="grid"></div>
+    </main>
+  </div>
+
+  <div class="editor-overlay" id="editor-overlay">
+    <div class="editor-panel">
+      <div class="editor-header">
+        <div class="editor-stage-badge" id="editor-stage-badge">
+          <span>Stage</span>
+          <strong id="editor-stage-num">1</strong>
+        </div>
+        <button class="btn-close" id="btn-close">&times;</button>
+      </div>
+      <div class="editor-body">
+        <h2 class="editor-title" id="editor-title"></h2>
+        <p class="editor-prompt" id="editor-prompt"></p>
+        <textarea id="editor-textarea" placeholder="Begin your story here..."></textarea>
+      </div>
+      <div class="editor-footer">
+        <div class="editor-meta">
+          <span id="editor-wordcount">0 words</span>
+          <span id="editor-status">Not started</span>
+        </div>
+        <button class="btn-save" id="btn-save">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="kbd-hint">
+    <span class="kbd"><kbd>←</kbd><kbd>→</kbd> Navigate</span>
+    <span class="kbd"><kbd>Enter</kbd> Edit</span>
+    <span class="kbd"><kbd>Esc</kbd> Close</span>
+    <span class="kbd"><kbd>⌘</kbd><kbd>S</kbd> Save</span>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
