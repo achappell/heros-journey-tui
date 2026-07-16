@@ -4,7 +4,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 
-from models import STAGES, Stage, StoryProject, stages_as_list
+from models import StoryProject, stages_as_list
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 

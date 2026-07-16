@@ -36,6 +36,10 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function titleWithoutNumber(title) {
+  return title.replace(/^\d+\.\s*/, "");
+}
+
 function summaryLine(content) {
   const trimmed = content.trim();
   if (!trimmed) return "—";
@@ -62,7 +66,7 @@ function render() {
     if (state === "collapsed") {
       el.innerHTML = `
         <div class="stage-num">${s.num}</div>
-        <div class="stage-title">${s.title}</div>
+        <div class="stage-title">${titleWithoutNumber(s.title)}</div>
       `;
     } else if (state === "idle") {
       el.innerHTML = `
@@ -70,7 +74,7 @@ function render() {
           <div class="stage-num">${s.num}</div>
           <span class="status-dot ${s.status}"></span>
         </div>
-        <div class="stage-title">${s.title}</div>
+        <div class="stage-title">${titleWithoutNumber(s.title)}</div>
         <div class="stage-prompt">${s.prompt}</div>
         <div class="stage-summary">${summaryLine(s.content)}</div>
       `;
@@ -80,7 +84,7 @@ function render() {
           <div class="stage-num">${s.num}</div>
           <span class="status-dot ${s.status}"></span>
         </div>
-        <div class="stage-title">${s.title}</div>
+        <div class="stage-title">${titleWithoutNumber(s.title)}</div>
         <div class="stage-prompt">${s.prompt}</div>
         <textarea class="stage-editor" placeholder="Begin your story here..."></textarea>
         <div class="stage-footer"><span class="stage-words">${s.wordCount} words</span></div>
@@ -94,10 +98,10 @@ function render() {
       textarea.addEventListener("blur", () => saveFocusedStage(false));
     }
 
-    el.addEventListener("click", () => {
+    el.addEventListener("click", (e) => {
       if (focusedKey === null) {
         focusStage(s.key, i);
-      } else if (s.key === focusedKey) {
+      } else if (s.key === focusedKey && !e.target.closest(".stage-editor")) {
         collapseFocused();
       }
     });
@@ -160,8 +164,20 @@ async function saveFocusedStage(thenCollapse) {
 
   if (thenCollapse) {
     focusedKey = null;
+    render();
+  } else if (result.ok) {
+    const card = grid.querySelector(`.stage[data-key="${focusedKey}"]`);
+    if (card) {
+      const wordsEl = card.querySelector(".stage-words");
+      if (wordsEl) {
+        wordsEl.textContent = `${stage.wordCount} word${stage.wordCount !== 1 ? "s" : ""}`;
+      }
+      const dotEl = card.querySelector(".status-dot");
+      if (dotEl) {
+        dotEl.className = `status-dot ${stage.status}`;
+      }
+    }
   }
-  render();
 }
 
 function updateStatusBar(count) {
