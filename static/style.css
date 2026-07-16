@@ -138,3 +138,113 @@ h1 {
   color: #444;
   letter-spacing: 0.05em;
 }
+
+.stage-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ai-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+.ai-btn, .next-btn, .action-btn {
+  background: #1f1f2e;
+  border: 1px solid #333;
+  color: #ccc;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.ai-btn:hover:not(:disabled), .next-btn:hover:not(:disabled), .action-btn:hover:not(:disabled) {
+  background: #2a2a3f;
+  border-color: #555;
+  color: #fff;
+}
+.ai-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.preview-block {
+  background: #1a1a24;
+  border: 1px solid #4a4a55;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.preview-text {
+  font-size: 0.8rem;
+  color: #e0e0e0;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+.preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.action-btn.accept {
+  background: #10b981;
+  border-color: #059669;
+  color: #fff;
+}
+.action-btn.accept:hover {
+  background: #059669;
+}
+.action-btn.reject {
+  background: #ef4444;
+  border-color: #dc2626;
+  color: #fff;
+}
+.action-btn.reject:hover {
+  background: #dc2626;
+}
+.preview-error {
+  color: #ef4444;
+  font-size: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.guided-flow {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.guided-question {
+  font-size: 0.95rem;
+  color: #fff;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.guided-loading {
+  font-size: 0.85rem;
+  color: #888;
+  font-style: italic;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage-content-view {
+  flex: 1;
+  font-size: 0.85rem;
+  color: #e0e0e0;
+  line-height: 1.5;
+  overflow-y: auto;
+  margin-bottom: 0.5rem;
+  padding: 0.75rem;
+  background: #0d0d15;
+  border: 1px solid #252530;
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
