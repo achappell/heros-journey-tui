@@ -1,118 +1,150 @@
 let stages = [];
-let story = {};
+let focusedKey = null;
 let selectedIdx = 0;
-let expandedKey = null;
 
 const grid = document.getElementById("grid");
-const overlay = document.getElementById("editor-overlay");
-const textarea = document.getElementById("editor-textarea");
+const statusBar = document.getElementById("status-bar");
 
 async function init() {
   const [stagesRes, storyRes] = await Promise.all([
     fetch("/api/stages"),
     fetch("/api/story"),
   ]);
-  stages = await stagesRes.json();
-  story = await storyRes.json();
-  renderGrid();
-  updateStatus();
-  selectStage(0);
+  const templates = await stagesRes.json();
+  const story = await storyRes.json();
+
+  stages = templates.map((t, i) => {
+    const saved = story.stages?.[t.key] || {};
+    return {
+      key: t.key,
+      num: String(i + 1),
+      title: t.title,
+      prompt: t.prompt,
+      content: saved.content || "",
+      wordCount: saved.wordCount || 0,
+      status: saved.status || "empty",
+    };
+  });
+
+  render();
+  updateStatusBar(story.completedCount || 0);
 }
 
-function renderGrid() {
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function summaryLine(content) {
+  const trimmed = content.trim();
+  if (!trimmed) return "—";
+  const words = trimmed.split(/\s+/);
+  const preview = words.slice(0, 12).join(" ");
+  return escapeHtml(preview) + (words.length > 12 ? "…" : "");
+}
+
+function cardState(idx) {
+  if (focusedKey === null) return "idle";
+  return stages[idx].key === focusedKey ? "focused" : "collapsed";
+}
+
+function render() {
   grid.innerHTML = "";
+
   stages.forEach((s, i) => {
-    const stageData = story.stages?.[s.key] || { wordCount: 0, status: "empty" };
-    const num = s.title.split(".")[0];
-    const title = s.title.split(". ").slice(1).join(". ");
+    const state = cardState(i);
     const el = document.createElement("div");
-    el.className = "stage" + (i === selectedIdx ? " selected" : "");
-    el.dataset.index = i;
-    el.innerHTML = `
-      <div class="stage-header">
-        <div class="stage-num">${num}</div>
-        <div class="stage-status ${stageData.status}"></div>
-      </div>
-      <div class="stage-title">${title}</div>
-      <div class="stage-prompt">${s.prompt}</div>
-      <div class="stage-footer">
-        <span class="stage-words">${stageData.wordCount || 0} words</span>
-        <span class="stage-action">Edit →</span>
-      </div>
-    `;
+    el.className = `stage ${state}` + (focusedKey === null && i === selectedIdx ? " selected" : "");
+    el.dataset.key = s.key;
+    el.dataset.index = String(i);
+
+    if (state === "collapsed") {
+      el.innerHTML = `
+        <div class="stage-num">${s.num}</div>
+        <div class="stage-title">${s.title}</div>
+      `;
+    } else if (state === "idle") {
+      el.innerHTML = `
+        <div class="stage-header">
+          <div class="stage-num">${s.num}</div>
+          <span class="status-dot ${s.status}"></span>
+        </div>
+        <div class="stage-title">${s.title}</div>
+        <div class="stage-prompt">${s.prompt}</div>
+        <div class="stage-summary">${summaryLine(s.content)}</div>
+      `;
+    } else {
+      el.innerHTML = `
+        <div class="stage-header">
+          <div class="stage-num">${s.num}</div>
+          <span class="status-dot ${s.status}"></span>
+        </div>
+        <div class="stage-title">${s.title}</div>
+        <div class="stage-prompt">${s.prompt}</div>
+        <textarea class="stage-editor" placeholder="Begin your story here..."></textarea>
+        <div class="stage-footer"><span class="stage-words">${s.wordCount} words</span></div>
+      `;
+      const textarea = el.querySelector(".stage-editor");
+      textarea.value = s.content;
+      textarea.addEventListener("input", () => {
+        const words = textarea.value.trim() ? textarea.value.trim().split(/\s+/).length : 0;
+        el.querySelector(".stage-words").textContent = `${words} word${words !== 1 ? "s" : ""}`;
+      });
+      textarea.addEventListener("blur", () => saveFocusedStage(false));
+    }
+
     el.addEventListener("click", () => {
-      selectStage(i);
-      openEditor(s.key);
+      if (focusedKey === null) {
+        focusStage(s.key, i);
+      } else if (s.key === focusedKey) {
+        collapseFocused();
+      }
     });
+
     grid.appendChild(el);
   });
-}
 
-function selectStage(idx) {
-  selectedIdx = idx;
-  grid.querySelectorAll(".stage").forEach((el, i) => {
-    el.classList.toggle("selected", i === idx);
-  });
-}
-
-function updateStatus() {
-  const count = story.completedCount || 0;
-  document.getElementById("status-count").textContent = `${count}/12`;
-  document.getElementById("status-text").textContent =
-    count === 12 ? "all complete!" : "stages complete";
-}
-
-function openEditor(key) {
-  expandedKey = key;
-  const template = stages.find((s) => s.key === key);
-  const data = story.stages?.[key] || { content: "", wordCount: 0, status: "empty" };
-  const num = template.title.split(".")[0];
-  const title = template.title.split(". ").slice(1).join(". ");
-
-  document.getElementById("editor-stage-num").textContent = num;
-  document.getElementById("editor-title").textContent = title;
-  document.getElementById("editor-prompt").textContent = template.prompt;
-  textarea.value = data.content || "";
-  updateEditorMeta(data.status);
-
-  overlay.classList.add("open");
-  setTimeout(() => textarea.focus(), 100);
-}
-
-function closeEditor() {
-  overlay.classList.remove("open");
-  expandedKey = null;
-}
-
-function updateEditorMeta(status) {
-  const words = textarea.value.trim() ? textarea.value.trim().split(/\s+/).length : 0;
-  document.getElementById("editor-wordcount").textContent = `${words} word${words !== 1 ? "s" : ""}`;
-
-  const statusEl = document.getElementById("editor-status");
-  if (status === "done") {
-    statusEl.textContent = "Complete";
-    statusEl.style.color = "#10b981";
-  } else if (status === "started") {
-    statusEl.textContent = "In progress";
-    statusEl.style.color = "#f59e0b";
-  } else {
-    statusEl.textContent = "Not started";
-    statusEl.style.color = "";
+  if (focusedKey !== null) {
+    const textarea = grid.querySelector(".stage.focused .stage-editor");
+    if (textarea) textarea.focus();
   }
 }
 
-function getStatusFromWords(words) {
-  if (words === 0) return "empty";
-  if (words < 50) return "started";
-  return "done";
+function focusStage(key, idx) {
+  focusedKey = key;
+  selectedIdx = idx;
+  render();
 }
 
-async function saveCurrentStage() {
-  if (!expandedKey) return;
-  const content = textarea.value;
-  const btn = document.getElementById("btn-save");
+function collapseFocused() {
+  saveFocusedStage(true);
+}
 
-  const res = await fetch(`/api/story/stage/${expandedKey}`, {
+async function saveFocusedStage(thenCollapse) {
+  if (focusedKey === null) return;
+
+  const textarea = grid.querySelector(".stage.focused .stage-editor");
+  if (!textarea) {
+    if (thenCollapse) {
+      focusedKey = null;
+      render();
+    }
+    return;
+  }
+
+  const content = textarea.value;
+  const stage = stages.find((s) => s.key === focusedKey);
+
+  if (stage.content === content) {
+    if (thenCollapse) {
+      focusedKey = null;
+      render();
+    }
+    return;
+  }
+
+  const res = await fetch(`/api/story/stage/${focusedKey}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content }),
@@ -120,79 +152,57 @@ async function saveCurrentStage() {
   const result = await res.json();
 
   if (result.ok) {
-    story.stages[expandedKey] = {
-      ...story.stages[expandedKey],
-      content,
-      wordCount: result.wordCount,
-      status: result.status,
-    };
-    story.lastSaved = result.lastSaved;
-    story.completedCount = Object.values(story.stages).filter(s => s?.status === "done").length;
-
-    btn.classList.add("saved");
-    btn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      Saved
-    `;
-
-    setTimeout(() => {
-      btn.classList.remove("saved");
-      btn.innerHTML = `
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        Save
-      `;
-    }, 1500);
-
-    renderGrid();
-    updateStatus();
-    updateEditorMeta(result.status);
+    stage.content = content;
+    stage.wordCount = result.wordCount;
+    stage.status = result.status;
+    updateStatusBar(stages.filter((s) => s.status === "done").length);
   }
+
+  if (thenCollapse) {
+    focusedKey = null;
+  }
+  render();
 }
 
-// Event listeners
-textarea.addEventListener("input", () => {
-  const words = textarea.value.trim() ? textarea.value.trim().split(/\s+/).length : 0;
-  updateEditorMeta(getStatusFromWords(words));
-});
-
-document.getElementById("btn-close").addEventListener("click", closeEditor);
-document.getElementById("btn-save").addEventListener("click", saveCurrentStage);
-
-overlay.addEventListener("click", (e) => {
-  if (e.target === overlay) closeEditor();
-});
+function updateStatusBar(count) {
+  statusBar.textContent = count === 12 ? "12/12 — all complete!" : `${count}/12 stages complete`;
+}
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeEditor();
-  if (e.key === "s" && (e.metaKey || e.ctrlKey)) {
-    e.preventDefault();
-    saveCurrentStage();
+  if (focusedKey !== null) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      collapseFocused();
+    } else if (e.key === "s" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      saveFocusedStage(false);
+    }
+    return;
   }
-});
 
-// Keyboard navigation on grid
-document.addEventListener("keydown", (e) => {
-  if (overlay.classList.contains("open")) return;
-
-  if (e.key === "ArrowRight" || e.key === "l") {
+  if (e.key === "ArrowRight") {
     e.preventDefault();
-    selectStage(Math.min(selectedIdx + 1, stages.length - 1));
+    selectedIdx = Math.min(selectedIdx + 1, stages.length - 1);
+    render();
   }
-  if (e.key === "ArrowLeft" || e.key === "h") {
+  if (e.key === "ArrowLeft") {
     e.preventDefault();
-    selectStage(Math.max(selectedIdx - 1, 0));
+    selectedIdx = Math.max(selectedIdx - 1, 0);
+    render();
   }
-  if (e.key === "ArrowDown" || e.key === "j") {
+  if (e.key === "ArrowDown") {
     e.preventDefault();
-    selectStage(Math.min(selectedIdx + 4, stages.length - 1));
+    selectedIdx = Math.min(selectedIdx + 4, stages.length - 1);
+    render();
   }
-  if (e.key === "ArrowUp" || e.key === "k") {
+  if (e.key === "ArrowUp") {
     e.preventDefault();
-    selectStage(Math.max(selectedIdx - 4, 0));
+    selectedIdx = Math.max(selectedIdx - 4, 0);
+    render();
   }
   if (e.key === "Enter" || e.key === " ") {
     e.preventDefault();
-    openEditor(stages[selectedIdx].key);
+    focusStage(stages[selectedIdx].key, selectedIdx);
   }
 });
 
