@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request, send_from_directory
 
 from models import STAGES, Stage, StoryProject, stages_as_list
 
-app = Flask(__name__, static_folder="static")
+app = Flask(__name__, static_folder="static", static_url_path="")
 
 SAVE_DIR = Path.home() / "Documents" / "HeroJourneyStories"
 DEFAULT_SAVE = SAVE_DIR / "story.json"
