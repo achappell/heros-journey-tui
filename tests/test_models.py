@@ -12,11 +12,27 @@ def test_story_project_save_load(tmp_path):
     # To get "done" status, we need >= 50 words
     content = "word " * 55
     project.stages["call_to_adventure"].content = content
-    
+
     save_file = tmp_path / "story.json"
     project.save(save_file)
-    
+
     loaded_project = StoryProject.load(save_file)
     assert loaded_project.title == "Test Story"
     assert loaded_project.stages["call_to_adventure"].status == "done"
     assert loaded_project.stages["call_to_adventure"].content == content
+
+
+def test_story_project_default_age_range():
+    project = StoryProject()
+    assert project.age_range == "adult"
+
+
+def test_story_project_age_range_save_load(tmp_path):
+    project = StoryProject()
+    project.age_range = "kids"
+
+    save_file = tmp_path / "story.json"
+    project.save(save_file)
+
+    loaded_project = StoryProject.load(save_file)
+    assert loaded_project.age_range == "kids"

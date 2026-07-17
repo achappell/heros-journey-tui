@@ -69,6 +69,7 @@ class Stage:
 @dataclass
 class StoryProject:
     title: str = "Untitled Story"
+    age_range: str = "adult"
     stages: dict[str, Stage] = field(default_factory=dict)
     path: Path | None = None
     last_saved: str | None = None
@@ -87,6 +88,7 @@ class StoryProject:
     def to_dict(self) -> dict:
         return {
             "title": self.title,
+            "age_range": self.age_range,
             "stages": {k: s.to_dict() for k, s in self.stages.items()},
         }
 
@@ -99,7 +101,10 @@ class StoryProject:
     @classmethod
     def load(cls, path: Path) -> StoryProject:
         data = json.loads(path.read_text(encoding="utf-8"))
-        project = cls(title=data.get("title", "Untitled Story"))
+        project = cls(
+            title=data.get("title", "Untitled Story"),
+            age_range=data.get("age_range", "adult"),
+        )
         for key, raw in data.get("stages", {}).items():
             if key in project.stages:
                 project.stages[key] = Stage.from_dict(raw)
