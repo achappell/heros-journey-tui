@@ -16,6 +16,7 @@ app = Flask(__name__, static_folder="static", static_url_path="")
 
 SAVE_DIR = Path.home() / "Documents" / "HeroJourneyStories"
 DEFAULT_SAVE = SAVE_DIR / "story.json"
+DATA_DIR = Path(__file__).parent / "static" / "data"
 
 
 def get_project() -> StoryProject:
@@ -43,11 +44,19 @@ def api_stages():
     return jsonify(stages_as_list())
 
 
+@app.route("/api/models")
+def api_models():
+    import json
+    models = json.loads((DATA_DIR / "models.json").read_text(encoding="utf-8"))
+    return jsonify(models)
+
+
 @app.route("/api/story", methods=["GET"])
 def api_get_story():
     project = get_project()
     return jsonify({
         "title": project.title,
+        "ageRange": project.age_range,
         "stages": {
             k: {"key": s.key, "content": s.content, "wordCount": s.word_count, "status": s.status}
             for k, s in project.stages.items()
@@ -64,6 +73,9 @@ def api_save_story():
 
     if "title" in data:
         project.title = data["title"]
+
+    if "ageRange" in data:
+        project.age_range = data["ageRange"]
 
     if "stages" in data:
         for key, stage_data in data["stages"].items():
@@ -112,8 +124,12 @@ def api_ai(action: str):
     if not data or "content" not in data or "stage_prompt" not in data:
         return jsonify({"error": "Missing content or stage_prompt"}), 400
 
+    model = data.get("model", "mimo-v2.5")
+    age_range = get_project().age_range
+
     try:
-        suggestion = ai.call_zen(action, data["content"], data["stage_prompt"], OPENCODE_ZEN_API_KEY)
+        suggestion = ai.call_zen(action, data["content"], data["stage_prompt"], OPENCODE_ZEN_API_KEY,
+                                  model=model, age_range=age_range)
         return jsonify({"suggestion": suggestion})
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 502
@@ -129,12 +145,14 @@ def api_ai_questions(key: str):
 
     data = request.get_json(silent=True) or {}
     q_and_a = data.get("q_and_a", [])
+    model = data.get("model", "mimo-v2.5")
 
     stage_prompt = next((s["prompt"] for s in stages_as_list() if s["key"] == key), "")
     story_so_far = _get_story_so_far(project, key)
 
     try:
-        questions = ai.generate_questions(stage_prompt, story_so_far, q_and_a, OPENCODE_ZEN_API_KEY)
+        questions = ai.generate_questions(stage_prompt, story_so_far, q_and_a, OPENCODE_ZEN_API_KEY,
+                                           model=model, age_range=project.age_range)
         return jsonify({"questions": questions})
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 502
@@ -152,11 +170,13 @@ def api_ai_weave(key: str):
     if not data or "q_and_a" not in data:
         return jsonify({"error": "Missing q_and_a"}), 400
 
+    model = data.get("model", "mimo-v2.5")
     stage_prompt = next((s["prompt"] for s in stages_as_list() if s["key"] == key), "")
     story_so_far = _get_story_so_far(project, key)
 
     try:
-        suggestion = ai.weave_answers(stage_prompt, story_so_far, data["q_and_a"], OPENCODE_ZEN_API_KEY)
+        suggestion = ai.weave_answers(stage_prompt, story_so_far, data["q_and_a"], OPENCODE_ZEN_API_KEY,
+                                       model=model, age_range=project.age_range)
         return jsonify({"suggestion": suggestion})
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 502
