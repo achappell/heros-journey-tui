@@ -9,23 +9,35 @@ logger = logging.getLogger(__name__)
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-def call_zen(action: str, content: str, stage_prompt: str, api_key: str) -> str:
+DATA_DIR = Path(__file__).parent / "static" / "data"
+
+
+def _age_guidance(age_range: str) -> str:
+    guidance = json.loads((DATA_DIR / "age_guidance.json").read_text(encoding="utf-8"))
+    return guidance.get(age_range, "")
+
+
+def call_zen(action: str, content: str, stage_prompt: str, api_key: str,
+             model: str = "mimo-v2.5", age_range: str = "adult") -> str:
     url = "https://opencode.ai/zen/go/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
-    
+
     try:
         prompt_path = Path(__file__).parent / "prompts" / f"{action}.md"
         system_msg = prompt_path.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
         raise RuntimeError(f"Unknown action: {action}")
-        
+
+    guidance = _age_guidance(age_range)
+    if guidance:
+        system_msg = f"{guidance}\n\n{system_msg}"
     system_msg += f"\n\nStage context: {stage_prompt}"
 
     payload = {
-        "model": "mimo-v2.5",
+        "model": model,
         "messages": [
             {"role": "system", "content": system_msg},
             {"role": "user", "content": content}
@@ -58,13 +70,14 @@ def call_zen(action: str, content: str, stage_prompt: str, api_key: str) -> str:
         logger.error(f"AI provider error: {str(e)}")
         raise RuntimeError(f"AI provider error: {str(e)}")
 
-def generate_questions(stage_prompt: str, story_so_far: str, q_and_a: list, api_key: str) -> list[str]:
+def generate_questions(stage_prompt: str, story_so_far: str, q_and_a: list, api_key: str,
+                        model: str = "mimo-v2.5", age_range: str = "adult") -> list[str]:
     url = "https://opencode.ai/zen/go/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
-    
+
     system_msg = (
         "You are an expert storytelling guide. Your task is to guide the user in writing the next stage of their story. "
         "Ask questions that are easy to answer, quick, and cut to the point. "
@@ -74,15 +87,18 @@ def generate_questions(stage_prompt: str, story_so_far: str, q_and_a: list, api_
         "If more questions are needed, generate 1 to 2 new thought-provoking questions. "
         "Output ONLY a valid JSON array of strings, e.g., [\"Question 1?\"], with no markdown formatting."
     )
-    
+    guidance = _age_guidance(age_range)
+    if guidance:
+        system_msg = f"{guidance}\n\n{system_msg}"
+
     qa_text = ""
     if q_and_a:
         qa_text = "\n\nUser's answers so far:\n" + "\n".join([f"Q: {item['q']}\nA: {item['a']}" for item in q_and_a])
-        
+
     user_msg = f"Story so far:\n{story_so_far if story_so_far else '(Beginning of the story)'}\n\nStage context: {stage_prompt}{qa_text}"
 
     payload = {
-        "model": "mimo-v2.5",
+        "model": model,
         "messages": [
             {"role": "system", "content": system_msg},
             {"role": "user", "content": user_msg}
@@ -120,25 +136,29 @@ def generate_questions(stage_prompt: str, story_so_far: str, q_and_a: list, api_
         logger.error(f"AI provider error: {str(e)}")
         raise RuntimeError(f"AI provider error: {str(e)}")
 
-def weave_answers(stage_prompt: str, story_so_far: str, q_and_a: list, api_key: str) -> str:
+def weave_answers(stage_prompt: str, story_so_far: str, q_and_a: list, api_key: str,
+                   model: str = "mimo-v2.5", age_range: str = "adult") -> str:
     url = "https://opencode.ai/zen/go/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
-    
+
     system_msg = (
         "You are an expert storyteller. The user has answered a series of guiding questions for a specific stage of the Hero's Journey. "
         "Your task is to weave their answers into a cohesive, well-written narrative passage for this stage. "
         "Use their ideas directly, adopting a descriptive and engaging tone that matches the story so far. "
         "Output only the narrative text, no extra commentary."
     )
-    
+    guidance = _age_guidance(age_range)
+    if guidance:
+        system_msg = f"{guidance}\n\n{system_msg}"
+
     qa_text = "\n".join([f"Q: {item['q']}\nA: {item['a']}" for item in q_and_a])
     user_msg = f"Story so far:\n{story_so_far if story_so_far else '(Beginning of the story)'}\n\nStage context: {stage_prompt}\n\nUser's Q&A:\n{qa_text}"
 
     payload = {
-        "model": "mimo-v2.5",
+        "model": model,
         "messages": [
             {"role": "system", "content": system_msg},
             {"role": "user", "content": user_msg}
