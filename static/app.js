@@ -2,6 +2,7 @@ let stages = [];
 let focusedKey = null;
 let selectedIdx = 0;
 let guidedState = null;
+let guidedGeneration = 0;
 let currentStory = null;
 
 const grid = document.getElementById("grid");
@@ -90,6 +91,13 @@ function render() {
             </div>
           </div>
         `;
+      } else if (!guidedState) {
+        bodyHtml = `
+          <div class="empty-stage-prompt">
+            <p class="empty-hint">No content yet for this stage.</p>
+            <button class="ai-btn start-guided-btn">Start Guided Flow</button>
+          </div>
+        `;
       } else {
         if (guidedState.error) {
           bodyHtml = `
@@ -137,15 +145,32 @@ function render() {
         <div class="stage-header">
           <div class="stage-num">${s.num}</div>
           <span class="status-dot ${s.status}"></span>
+          <button class="close-tile-btn" title="Close (Esc)">✕</button>
         </div>
         <div class="stage-title">${s.title}</div>
         <div class="stage-prompt">${s.prompt}</div>
         ${bodyHtml}
       `;
 
+      const closeTileBtn = el.querySelector(".close-tile-btn");
+      if (closeTileBtn) {
+        closeTileBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          collapseFocused();
+        });
+      }
+
       const redoBtn = el.querySelector(".redo-guided-btn");
       if (redoBtn) {
         redoBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          startGuidedFlow(s.key);
+        });
+      }
+
+      const startBtn = el.querySelector(".start-guided-btn");
+      if (startBtn) {
+        startBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           startGuidedFlow(s.key);
         });
@@ -222,6 +247,7 @@ function render() {
           e.stopPropagation();
           const content = guidedState.suggestion;
           guidedState = null;
+          guidedGeneration++;
           await saveStageContent(s.key, content);
           render();
         });
@@ -232,17 +258,25 @@ function render() {
         rejectBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           guidedState = null;
+          guidedGeneration++;
           render();
         });
       }
     }
 
     el.addEventListener("click", (e) => {
-      // Ignore clicks on textareas, buttons, or inside the guided flow interactive area
-      if (e.target.tagName.toLowerCase() === 'textarea' || e.target.tagName.toLowerCase() === 'button' || e.target.closest('.guided-flow')) {
+      // Ignore clicks on textareas, buttons, or inside interactive/read-only text areas
+      if (e.target.tagName.toLowerCase() === 'textarea' || e.target.tagName.toLowerCase() === 'button' ||
+          e.target.closest('.guided-flow') || e.target.closest('.stage-content-view')) {
         return;
       }
-      
+
+      // Don't collapse if the click is the end of a text-selection drag
+      const selection = window.getSelection();
+      if (selection && selection.toString().length > 0) {
+        return;
+      }
+
       if (focusedKey === null) {
         focusStage(s.key, i);
       } else if (s.key === focusedKey) {
@@ -263,13 +297,8 @@ function focusStage(key, idx) {
   if (focusedKey !== key) {
     focusedKey = key;
     selectedIdx = idx;
-    const s = stages[idx];
-    if (!s.content) {
-      startGuidedFlow(key);
-    } else {
-      guidedState = null;
-      render();
-    }
+    guidedState = null;
+    render();
   }
 }
 
@@ -285,6 +314,7 @@ function getStorySoFar(key) {
 function collapseFocused() {
   focusedKey = null;
   guidedState = null;
+  guidedGeneration++;
   render();
 }
 
@@ -298,12 +328,14 @@ async function saveStageContent(key, content) {
 }
 
 async function startGuidedFlow(key) {
+  const generation = ++guidedGeneration;
   guidedState = { loading: true, questions: [], q_and_a: [], idx: 0, suggestion: null, error: null, fetchingBackground: false, waitingForMore: false, noMoreQuestions: false };
   render();
   const stage = stages.find((s) => s.key === key);
   const storySoFar = getStorySoFar(key);
   try {
     const questions = await AIClient.generateQuestions(stage.prompt, storySoFar, []);
+    if (generation !== guidedGeneration) return; // tile was closed or reset while this was in flight
     if (questions.length > 0) {
       guidedState.questions = questions;
     } else {
@@ -311,6 +343,7 @@ async function startGuidedFlow(key) {
     }
     guidedState.loading = false;
   } catch (err) {
+    if (generation !== guidedGeneration) return;
     guidedState.error = err.message || "Network error";
     guidedState.loading = false;
   }
@@ -319,11 +352,13 @@ async function startGuidedFlow(key) {
 
 async function fetchMoreQuestionsInBackground(key) {
   if (guidedState.noMoreQuestions || guidedState.fetchingBackground) return;
+  const generation = guidedGeneration;
   guidedState.fetchingBackground = true;
   const stage = stages.find((s) => s.key === key);
   const storySoFar = getStorySoFar(key);
   try {
     const questions = await AIClient.generateQuestions(stage.prompt, storySoFar, guidedState.q_and_a);
+    if (generation !== guidedGeneration) return;
     if (questions.length > 0) {
       guidedState.questions.push(...questions);
       if (guidedState.waitingForMore) {
@@ -339,23 +374,29 @@ async function fetchMoreQuestionsInBackground(key) {
   } catch (err) {
     console.error("Background fetch failed", err);
   } finally {
-    if (guidedState) guidedState.fetchingBackground = false;
+    if (generation === guidedGeneration && guidedState) guidedState.fetchingBackground = false;
   }
 }
 
 async function doWeave(key) {
+  const generation = guidedGeneration;
   guidedState.loading = true;
   guidedState.waitingForMore = false;
   if (focusedKey === key) render();
   const stage = stages.find((s) => s.key === key);
   const storySoFar = getStorySoFar(key);
   try {
-    guidedState.suggestion = await AIClient.weaveAnswers(stage.prompt, storySoFar, guidedState.q_and_a);
+    const suggestion = await AIClient.weaveAnswers(stage.prompt, storySoFar, guidedState.q_and_a);
+    if (generation !== guidedGeneration) return;
+    guidedState.suggestion = suggestion;
   } catch (err) {
+    if (generation !== guidedGeneration) return;
     guidedState.error = err.message || "Network error";
   } finally {
-    guidedState.loading = false;
-    if (focusedKey === key) render();
+    if (generation === guidedGeneration && guidedState) {
+      guidedState.loading = false;
+      if (focusedKey === key) render();
+    }
   }
 }
 
