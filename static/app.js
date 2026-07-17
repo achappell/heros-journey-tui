@@ -2,33 +2,32 @@ let stages = [];
 let focusedKey = null;
 let selectedIdx = 0;
 let guidedState = null;
+let currentStory = null;
 
 const grid = document.getElementById("grid");
 const statusBar = document.getElementById("status-bar");
 
 async function init() {
-  const [stagesRes, storyRes] = await Promise.all([
-    fetch("/api/stages"),
-    fetch("/api/story"),
-  ]);
+  const stagesRes = await fetch("data/stages.json");
   const templates = await stagesRes.json();
-  const story = await storyRes.json();
+  currentStory = StoryStore.load(templates);
 
   stages = templates.map((t, i) => {
-    const saved = story.stages?.[t.key] || {};
+    const content = currentStory.stages[t.key].content;
     return {
       key: t.key,
       num: String(i + 1),
       title: t.title,
       prompt: t.prompt,
-      content: saved.content || "",
-      wordCount: saved.wordCount || 0,
-      status: saved.status || "empty",
+      content,
+      wordCount: StoryStore.wordCount(content),
+      status: StoryStore.stageStatus(content),
     };
   });
 
   render();
-  updateStatusBar(story.completedCount || 0);
+  updateStatusBar(StoryStore.completedCount(currentStory));
+  initSettingsPanel();
 }
 
 function escapeHtml(str) {
@@ -281,40 +280,28 @@ function collapseFocused() {
 
 async function saveStageContent(key, content) {
   const stage = stages.find((s) => s.key === key);
-  const res = await fetch(`/api/story/stage/${key}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
-  });
-  const result = await res.json();
-
-  if (result.ok) {
-    stage.content = content;
-    stage.wordCount = result.wordCount;
-    stage.status = result.status;
-    updateStatusBar(stages.filter((s) => s.status === "done").length);
-  }
+  const result = StoryStore.saveStageContent(currentStory, key, content);
+  stage.content = content;
+  stage.wordCount = result.wordCount;
+  stage.status = result.status;
+  updateStatusBar(stages.filter((s) => s.status === "done").length);
 }
 
 async function startGuidedFlow(key) {
   guidedState = { loading: true, questions: [], q_and_a: [], idx: 0, suggestion: null, error: null, fetchingBackground: false, waitingForMore: false, noMoreQuestions: false };
   render();
+  const stage = stages.find((s) => s.key === key);
+  const storySoFar = stages.slice(0, stages.indexOf(stage)).map((s) => s.content).filter(Boolean).join("\n\n");
   try {
-    const res = await fetch(`/api/ai/questions/${key}`, { method: "POST" });
-    const data = await res.json();
-    if (res.ok) {
-      if (data.questions && data.questions.length > 0) {
-        guidedState.questions = data.questions;
-      } else {
-        guidedState.error = "AI returned no initial questions.";
-      }
-      guidedState.loading = false;
+    const questions = await AIClient.generateQuestions(stage.prompt, storySoFar, []);
+    if (questions.length > 0) {
+      guidedState.questions = questions;
     } else {
-      guidedState.error = data.error;
-      guidedState.loading = false;
+      guidedState.error = "AI returned no initial questions.";
     }
+    guidedState.loading = false;
   } catch (err) {
-    guidedState.error = "Network error";
+    guidedState.error = err.message || "Network error";
     guidedState.loading = false;
   }
   if (focusedKey === key) render();
@@ -323,25 +310,20 @@ async function startGuidedFlow(key) {
 async function fetchMoreQuestionsInBackground(key) {
   if (guidedState.noMoreQuestions || guidedState.fetchingBackground) return;
   guidedState.fetchingBackground = true;
+  const stage = stages.find((s) => s.key === key);
+  const storySoFar = stages.slice(0, stages.indexOf(stage)).map((s) => s.content).filter(Boolean).join("\n\n");
   try {
-    const res = await fetch(`/api/ai/questions/${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ q_and_a: guidedState.q_and_a })
-    });
-    const data = await res.json();
-    if (res.ok && data.questions) {
-      if (data.questions.length > 0) {
-        guidedState.questions.push(...data.questions);
-        if (guidedState.waitingForMore) {
-          guidedState.waitingForMore = false;
-          if (focusedKey === key) render();
-        }
-      } else {
-        guidedState.noMoreQuestions = true;
-        if (guidedState.waitingForMore) {
-          await doWeave(key);
-        }
+    const questions = await AIClient.generateQuestions(stage.prompt, storySoFar, guidedState.q_and_a);
+    if (questions.length > 0) {
+      guidedState.questions.push(...questions);
+      if (guidedState.waitingForMore) {
+        guidedState.waitingForMore = false;
+        if (focusedKey === key) render();
+      }
+    } else {
+      guidedState.noMoreQuestions = true;
+      if (guidedState.waitingForMore) {
+        await doWeave(key);
       }
     }
   } catch (err) {
@@ -355,20 +337,12 @@ async function doWeave(key) {
   guidedState.loading = true;
   guidedState.waitingForMore = false;
   if (focusedKey === key) render();
+  const stage = stages.find((s) => s.key === key);
+  const storySoFar = stages.slice(0, stages.indexOf(stage)).map((s) => s.content).filter(Boolean).join("\n\n");
   try {
-    const res = await fetch(`/api/ai/weave/${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ q_and_a: guidedState.q_and_a })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      guidedState.suggestion = data.suggestion;
-    } else {
-      guidedState.error = data.error;
-    }
+    guidedState.suggestion = await AIClient.weaveAnswers(stage.prompt, storySoFar, guidedState.q_and_a);
   } catch (err) {
-    guidedState.error = "Network error";
+    guidedState.error = err.message || "Network error";
   } finally {
     guidedState.loading = false;
     if (focusedKey === key) render();
@@ -414,5 +388,50 @@ document.addEventListener("keydown", (e) => {
     focusStage(stages[selectedIdx].key, selectedIdx);
   }
 });
+
+async function initSettingsPanel() {
+  const toggle = document.getElementById("settings-toggle");
+  const panel = document.getElementById("settings-panel");
+  const apiKeyInput = document.getElementById("api-key-input");
+  const modelSelect = document.getElementById("model-select");
+  const ageRangeSelect = document.getElementById("age-range-select");
+  const exportBtn = document.getElementById("export-btn");
+  const importInput = document.getElementById("import-input");
+  const closeBtn = document.getElementById("settings-close");
+
+  const settings = Settings.load();
+  apiKeyInput.value = settings.apiKey;
+  ageRangeSelect.value = currentStory.ageRange || settings.ageRange;
+
+  const modelsRes = await fetch("data/models.json");
+  const models = await modelsRes.json();
+  modelSelect.innerHTML = models.map((m) => `<option value="${m}">${m}</option>`).join("");
+  modelSelect.value = settings.model;
+
+  toggle.addEventListener("click", () => panel.classList.toggle("hidden"));
+  closeBtn.addEventListener("click", () => panel.classList.add("hidden"));
+
+  apiKeyInput.addEventListener("change", () => Settings.save({ apiKey: apiKeyInput.value }));
+  modelSelect.addEventListener("change", () => Settings.save({ model: modelSelect.value }));
+  ageRangeSelect.addEventListener("change", () => {
+    Settings.save({ ageRange: ageRangeSelect.value });
+    currentStory.ageRange = ageRangeSelect.value;
+    StoryStore.save(currentStory);
+  });
+
+  exportBtn.addEventListener("click", () => StoryIO.exportStory(currentStory));
+  importInput.addEventListener("change", async () => {
+    const file = importInput.files[0];
+    if (!file) return;
+    try {
+      const imported = await StoryIO.importStory(file);
+      currentStory = imported;
+      StoryStore.save(currentStory);
+      location.reload();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+}
 
 init();
