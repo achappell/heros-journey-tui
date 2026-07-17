@@ -80,7 +80,7 @@ function render() {
       let bodyHtml = '';
       if (s.content && !guidedState) {
         bodyHtml = `
-          <div class="stage-content-view">${escapeHtml(s.content)}</div>
+          <textarea class="stage-editor content-editor">${escapeHtml(s.content)}</textarea>
           <div class="stage-footer">
             <div class="footer-row">
               <span class="stage-words">${s.wordCount} words</span>
@@ -152,10 +152,31 @@ function render() {
         ${bodyHtml}
       `;
 
+      const contentEditor = el.querySelector(".content-editor");
+      let flushSaveTimeout = null;
+      const flushContentEditor = () => {
+        if (!contentEditor) return;
+        clearTimeout(flushSaveTimeout);
+        saveStageContent(s.key, contentEditor.value);
+      };
+      if (contentEditor) {
+        contentEditor.addEventListener("input", () => {
+          const newContent = contentEditor.value;
+          const wordsEl = el.querySelector(".stage-words");
+          if (wordsEl) wordsEl.textContent = `${StoryStore.wordCount(newContent)} words`;
+          const dotEl = el.querySelector(".status-dot");
+          if (dotEl) dotEl.className = `status-dot ${StoryStore.stageStatus(newContent)}`;
+          clearTimeout(flushSaveTimeout);
+          flushSaveTimeout = setTimeout(() => saveStageContent(s.key, newContent), 500);
+        });
+        contentEditor.addEventListener("blur", flushContentEditor);
+      }
+
       const closeTileBtn = el.querySelector(".close-tile-btn");
       if (closeTileBtn) {
         closeTileBtn.addEventListener("click", (e) => {
           e.stopPropagation();
+          flushContentEditor();
           collapseFocused();
         });
       }
@@ -164,6 +185,7 @@ function render() {
       if (redoBtn) {
         redoBtn.addEventListener("click", (e) => {
           e.stopPropagation();
+          flushContentEditor();
           startGuidedFlow(s.key);
         });
       }
@@ -188,6 +210,7 @@ function render() {
       if (nextBtn) {
         nextBtn.addEventListener("click", (e) => {
           e.stopPropagation();
+          flushContentEditor();
           focusStage(stages[i + 1].key, i + 1);
         });
       }
@@ -265,9 +288,9 @@ function render() {
     }
 
     el.addEventListener("click", (e) => {
-      // Ignore clicks on textareas, buttons, or inside interactive/read-only text areas
+      // Ignore clicks on textareas, buttons, or inside the guided flow interactive area
       if (e.target.tagName.toLowerCase() === 'textarea' || e.target.tagName.toLowerCase() === 'button' ||
-          e.target.closest('.guided-flow') || e.target.closest('.stage-content-view')) {
+          e.target.closest('.guided-flow')) {
         return;
       }
 
@@ -280,6 +303,8 @@ function render() {
       if (focusedKey === null) {
         focusStage(s.key, i);
       } else if (s.key === focusedKey) {
+        const editor = el.querySelector(".content-editor");
+        if (editor) saveStageContent(s.key, editor.value);
         collapseFocused();
       }
     });
