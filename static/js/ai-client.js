@@ -1,6 +1,6 @@
 // static/js/ai-client.js
 const AIClient = (() => {
-  const WORKER_URL = "https://REPLACE_ME.workers.dev"; // updated in Task 9 after the Worker is deployed
+  const WORKER_URL = "https://hero-journey-ai-relay.achappell.workers.dev";
   let ageGuidanceCache = null;
 
   async function getAgeGuidance(ageRange) {
