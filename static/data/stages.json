@@ -1,0 +1,62 @@
+[
+  {
+    "key": "ordinary_world",
+    "title": "1. Ordinary World",
+    "prompt": "Who is your hero before anything changes? Show their normal life, what they want, and what's missing."
+  },
+  {
+    "key": "call_to_adventure",
+    "title": "2. Call to Adventure",
+    "prompt": "What event disrupts the ordinary world and presents a problem, challenge, or opportunity your hero can't ignore?"
+  },
+  {
+    "key": "refusal_of_the_call",
+    "title": "3. Refusal of the Call",
+    "prompt": "Why does the hero hesitate? Fear, doubt, duty, or a taste of the risk ahead \u2014 show the reluctance before they commit."
+  },
+  {
+    "key": "meeting_the_mentor",
+    "title": "4. Meeting the Mentor",
+    "prompt": "Who (or what) gives the hero the confidence, knowledge, or tools to move forward?"
+  },
+  {
+    "key": "crossing_the_threshold",
+    "title": "5. Crossing the Threshold",
+    "prompt": "The hero commits and leaves the ordinary world behind. What's the point of no return, and what do they leave behind?"
+  },
+  {
+    "key": "tests_allies_enemies",
+    "title": "6. Tests, Allies, and Enemies",
+    "prompt": "The hero learns the rules of the new world. Who do they team up with, who opposes them, and what smaller trials test them?"
+  },
+  {
+    "key": "approach_inmost_cave",
+    "title": "7. Approach to the Inmost Cave",
+    "prompt": "The hero nears the central danger of the story. What preparations are made, and what rising tension signals the ordeal ahead?"
+  },
+  {
+    "key": "ordeal",
+    "title": "8. Ordeal",
+    "prompt": "The central crisis \u2014 the hero's greatest fear or biggest test. What do they confront, and how do they nearly fail?"
+  },
+  {
+    "key": "reward",
+    "title": "9. Reward (Seizing the Sword)",
+    "prompt": "Having survived the ordeal, what does the hero gain \u2014 an object, knowledge, reconciliation, or power?"
+  },
+  {
+    "key": "road_back",
+    "title": "10. The Road Back",
+    "prompt": "The hero commits to finishing the journey home. What consequences of the ordeal chase them, or what choice recommits them to the goal?"
+  },
+  {
+    "key": "resurrection",
+    "title": "11. Resurrection",
+    "prompt": "The final, highest-stakes test, where the hero is transformed for good. What's the climax, and who do they become through it?"
+  },
+  {
+    "key": "return_with_elixir",
+    "title": "12. Return with the Elixir",
+    "prompt": "The hero returns changed, bringing something back that benefits their world. What's the elixir, and what does home look like now?"
+  }
+]
