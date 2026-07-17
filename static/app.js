@@ -11,6 +11,7 @@ async function init() {
   const stagesRes = await fetch("data/stages.json");
   const templates = await stagesRes.json();
   currentStory = StoryStore.load(templates);
+  Settings.save({ ageRange: currentStory.ageRange });
 
   stages = templates.map((t, i) => {
     const content = currentStory.stages[t.key].content;
@@ -272,6 +273,15 @@ function focusStage(key, idx) {
   }
 }
 
+function getStorySoFar(key) {
+  const idx = stages.findIndex((s) => s.key === key);
+  return stages
+    .slice(0, idx)
+    .filter((s) => s.content.trim())
+    .map((s) => `--- ${s.key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} ---\n${s.content.trim()}`)
+    .join("\n\n");
+}
+
 function collapseFocused() {
   focusedKey = null;
   guidedState = null;
@@ -291,7 +301,7 @@ async function startGuidedFlow(key) {
   guidedState = { loading: true, questions: [], q_and_a: [], idx: 0, suggestion: null, error: null, fetchingBackground: false, waitingForMore: false, noMoreQuestions: false };
   render();
   const stage = stages.find((s) => s.key === key);
-  const storySoFar = stages.slice(0, stages.indexOf(stage)).map((s) => s.content).filter(Boolean).join("\n\n");
+  const storySoFar = getStorySoFar(key);
   try {
     const questions = await AIClient.generateQuestions(stage.prompt, storySoFar, []);
     if (questions.length > 0) {
@@ -311,7 +321,7 @@ async function fetchMoreQuestionsInBackground(key) {
   if (guidedState.noMoreQuestions || guidedState.fetchingBackground) return;
   guidedState.fetchingBackground = true;
   const stage = stages.find((s) => s.key === key);
-  const storySoFar = stages.slice(0, stages.indexOf(stage)).map((s) => s.content).filter(Boolean).join("\n\n");
+  const storySoFar = getStorySoFar(key);
   try {
     const questions = await AIClient.generateQuestions(stage.prompt, storySoFar, guidedState.q_and_a);
     if (questions.length > 0) {
@@ -338,7 +348,7 @@ async function doWeave(key) {
   guidedState.waitingForMore = false;
   if (focusedKey === key) render();
   const stage = stages.find((s) => s.key === key);
-  const storySoFar = stages.slice(0, stages.indexOf(stage)).map((s) => s.content).filter(Boolean).join("\n\n");
+  const storySoFar = getStorySoFar(key);
   try {
     guidedState.suggestion = await AIClient.weaveAnswers(stage.prompt, storySoFar, guidedState.q_and_a);
   } catch (err) {
