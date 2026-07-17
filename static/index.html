@@ -8,9 +8,39 @@
 </head>
 <body>
   <h1>HERO'S JOURNEY</h1>
+  <button id="settings-toggle" class="settings-toggle" title="Settings">⚙</button>
   <div class="status-bar" id="status-bar">0/12 stages complete</div>
   <div class="grid" id="grid"></div>
   <p class="instructions">Click a stage to focus · Esc to save and collapse · ⌘/Ctrl+S to save</p>
+
+  <div id="settings-panel" class="settings-panel hidden">
+    <h2>Settings</h2>
+    <label>OpenCode Zen API Key
+      <input type="password" id="api-key-input" placeholder="sk-...">
+    </label>
+    <label>Model
+      <select id="model-select"></select>
+    </label>
+    <label>Story age range
+      <select id="age-range-select">
+        <option value="kids">Kids (6-9)</option>
+        <option value="tween">Tween (10-12)</option>
+        <option value="teen">Teen (13-17)</option>
+        <option value="adult">Adult</option>
+      </select>
+    </label>
+    <div class="settings-actions">
+      <button id="export-btn">Export story</button>
+      <label class="import-label" for="import-input">Import story</label>
+      <input type="file" id="import-input" accept="application/json" hidden>
+    </div>
+    <button id="settings-close">Close</button>
+  </div>
+
+  <script src="js/settings.js"></script>
+  <script src="js/story-store.js"></script>
+  <script src="js/ai-client.js"></script>
+  <script src="js/export-import.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
