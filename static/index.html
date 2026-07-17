@@ -5,9 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Hero's Journey</title>
   <link rel="stylesheet" href="style.css">
+  <script>
+    (function () {
+      var saved = localStorage.getItem('hj_theme');
+      var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
 </head>
 <body>
   <h1>HERO'S JOURNEY</h1>
+  <button id="theme-toggle" class="theme-toggle" title="Toggle light/dark">🌙</button>
   <button id="settings-toggle" class="settings-toggle" title="Settings">⚙</button>
   <div class="status-bar" id="status-bar">0/12 stages complete</div>
   <div class="grid" id="grid"></div>

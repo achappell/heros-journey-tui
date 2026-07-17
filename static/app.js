@@ -30,6 +30,23 @@ async function init() {
   render();
   updateStatusBar(StoryStore.completedCount(currentStory));
   initSettingsPanel();
+  initThemeToggle();
+}
+
+function initThemeToggle() {
+  const btn = document.getElementById("theme-toggle");
+  const applyIcon = () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    btn.textContent = isLight ? "☀️" : "🌙";
+  };
+  applyIcon();
+  btn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    const next = isLight ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("hj_theme", next);
+    applyIcon();
+  });
 }
 
 function escapeHtml(str) {
