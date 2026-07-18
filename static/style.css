@@ -435,3 +435,68 @@ h1 {
   font-size: 0.8rem;
   color: var(--text-muted);
 }
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  body { padding: 1rem 0.75rem 1.5rem; }
+
+  h1 { font-size: 1.15rem; letter-spacing: 0.06em; margin-right: 5rem; }
+
+  .status-bar { margin-bottom: 1rem; }
+
+  .grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    gap: 6px;
+  }
+
+  .stage { padding: 0.85rem; }
+
+  .stage.focused {
+    grid-column: span 1;
+    grid-row: auto;
+  }
+
+  .stage.focused .stage-title { font-size: 1rem; }
+
+  .stage-editor { min-height: 110px; font-size: 1rem; }
+
+  .settings-toggle,
+  .theme-toggle {
+    width: 2.6rem;
+    height: 2.6rem;
+    font-size: 1.2rem;
+  }
+
+  .theme-toggle { right: 3.9rem; }
+
+  .settings-panel {
+    right: 1rem;
+    left: 1rem;
+    width: auto;
+  }
+
+  .settings-panel input,
+  .settings-panel select {
+    font-size: 1rem;
+    padding: 0.55rem;
+  }
+
+  .close-tile-btn {
+    font-size: 1.1rem;
+    padding: 0.35rem 0.5rem;
+  }
+
+  .ai-btn, .next-btn, .action-btn {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.75rem;
+  }
+
+  .instructions { font-size: 0.65rem; }
+}
