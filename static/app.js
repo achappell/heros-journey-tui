@@ -674,6 +674,11 @@ function updateStatusBar(count) {
 }
 
 document.addEventListener("keydown", (e) => {
+  const tag = e.target.tagName;
+  if (tag === "TEXTAREA" || tag === "INPUT" || e.target.isContentEditable) {
+    return;
+  }
+
   if (focusedKey !== null) {
     if (e.key === "Escape") {
       e.preventDefault();
