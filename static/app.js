@@ -60,6 +60,8 @@ async function init() {
 
   document.getElementById('logs-export-btn').addEventListener('click', showExportPanel);
   document.getElementById('export-close-btn').addEventListener('click', closeExportPanel);
+  document.getElementById('view-story-btn').addEventListener('click', showStoryView);
+  document.getElementById('story-view-close-btn').addEventListener('click', closeStoryView);
   document.getElementById('export-debug-download').addEventListener('click', downloadDebugLog);
   document.getElementById('export-debug-copy').addEventListener('click', copyDebugLog);
   document.getElementById('export-qa-download').addEventListener('click', downloadQAExport);
@@ -74,6 +76,36 @@ function showExportPanel() {
 function closeExportPanel() {
   document.getElementById('export-panel').classList.add('hidden');
   grid.classList.remove('export-open');
+}
+
+function showStoryView() {
+  const content = document.getElementById('story-view-content');
+  content.innerHTML = '';
+
+  for (const stage of stages) {
+    const stageDiv = document.createElement('div');
+    stageDiv.className = 'story-stage';
+
+    const title = document.createElement('div');
+    title.className = 'story-stage-title';
+    title.textContent = stage.title;
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'story-stage-content';
+    contentDiv.textContent = stage.content || '(empty)';
+
+    stageDiv.appendChild(title);
+    stageDiv.appendChild(contentDiv);
+    content.appendChild(stageDiv);
+  }
+
+  document.getElementById('story-view-panel').classList.remove('hidden');
+  grid.classList.add('story-view-open');
+}
+
+function closeStoryView() {
+  document.getElementById('story-view-panel').classList.add('hidden');
+  grid.classList.remove('story-view-open');
 }
 
 function generateDebugLog() {
