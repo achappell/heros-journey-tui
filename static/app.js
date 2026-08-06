@@ -62,6 +62,8 @@ async function init() {
   document.getElementById('export-close-btn').addEventListener('click', closeExportPanel);
   document.getElementById('export-debug-download').addEventListener('click', downloadDebugLog);
   document.getElementById('export-debug-copy').addEventListener('click', copyDebugLog);
+  document.getElementById('export-qa-download').addEventListener('click', downloadQAExport);
+  document.getElementById('export-qa-copy').addEventListener('click', copyQAExport);
 }
 
 function showExportPanel() {
@@ -115,6 +117,70 @@ function copyDebugLog() {
   const json = JSON.stringify(debugLog, null, 2);
   navigator.clipboard.writeText(json).then(() => {
     alert('Debug log copied to clipboard!');
+  }).catch(err => {
+    alert('Failed to copy: ' + err.message);
+  });
+}
+
+function generateQAExport(format = 'markdown') {
+  let output = '';
+
+  if (format === 'markdown') {
+    output = `# ${currentStory.title}\n\n`;
+  }
+
+  for (const stage of stages) {
+    const stageLog = storyLogs[stage.key];
+
+    if (format === 'markdown') {
+      output += `## ${stage.title}\n\n`;
+    } else {
+      output += `${stage.title}\n${'='.repeat(stage.title.length)}\n\n`;
+    }
+
+    if (stageLog && stageLog.sessions.length > 0) {
+      const latestSession = stageLog.sessions[stageLog.sessions.length - 1];
+      for (const qa of latestSession.q_and_a) {
+        if (format === 'markdown') {
+          output += `**Q:** ${qa.q}\n`;
+          output += `**A:** ${qa.a}\n\n`;
+        } else {
+          output += `Q: ${qa.q}\n`;
+          output += `A: ${qa.a}\n\n`;
+        }
+      }
+    } else {
+      if (format === 'markdown') {
+        output += `*No Q&A recorded yet.*\n\n`;
+      } else {
+        output += `No Q&A recorded yet.\n\n`;
+      }
+    }
+  }
+
+  return output;
+}
+
+function downloadQAExport() {
+  const format = document.querySelector('input[name="qa-format"]:checked').value;
+  const content = generateQAExport(format);
+  const ext = format === 'markdown' ? 'md' : 'txt';
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `story_${currentStory.title}_q-and-a_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.${ext}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function copyQAExport() {
+  const format = document.querySelector('input[name="qa-format"]:checked').value;
+  const content = generateQAExport(format);
+  navigator.clipboard.writeText(content).then(() => {
+    alert('Q&A export copied to clipboard!');
   }).catch(err => {
     alert('Failed to copy: ' + err.message);
   });
