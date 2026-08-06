@@ -57,6 +57,19 @@ async function init() {
   updateStatusBar(StoryStore.completedCount(currentStory));
   initSettingsPanel();
   initThemeToggle();
+
+  document.getElementById('logs-export-btn').addEventListener('click', showExportPanel);
+  document.getElementById('export-close-btn').addEventListener('click', closeExportPanel);
+}
+
+function showExportPanel() {
+  document.getElementById('export-panel').classList.remove('hidden');
+  grid.classList.add('export-open');
+}
+
+function closeExportPanel() {
+  document.getElementById('export-panel').classList.add('hidden');
+  grid.classList.remove('export-open');
 }
 
 function initThemeToggle() {
