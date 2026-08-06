@@ -7,13 +7,31 @@ let currentStory = null;
 
 let storyLogs = {};  // { stage_key: { sessions: [...] } }
 
+const STORY_LOGS_KEY = "hj_story_logs";
+
 const grid = document.getElementById("grid");
 const statusBar = document.getElementById("status-bar");
 
 function initStoryLogs() {
+  const raw = localStorage.getItem(STORY_LOGS_KEY);
+  let parsed = null;
+  if (raw) {
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      parsed = null;
+    }
+  }
+  storyLogs = parsed || {};
   stages.forEach(stage => {
-    storyLogs[stage.key] = { sessions: [] };
+    if (!storyLogs[stage.key]) {
+      storyLogs[stage.key] = { sessions: [] };
+    }
   });
+}
+
+function saveStoryLogs() {
+  localStorage.setItem(STORY_LOGS_KEY, JSON.stringify(storyLogs));
 }
 
 function logGuidedSession(stageKey, sessionData) {
@@ -30,6 +48,7 @@ function logGuidedSession(stageKey, sessionData) {
     q_and_a: sessionData.q_and_a,
     final_woven_content: sessionData.final_woven_content
   });
+  saveStoryLogs();
 }
 
 async function init() {
