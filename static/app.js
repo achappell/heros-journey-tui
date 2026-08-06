@@ -5,8 +5,32 @@ let guidedState = null;
 let guidedGeneration = 0;
 let currentStory = null;
 
+let storyLogs = {};  // { stage_key: { sessions: [...] } }
+
 const grid = document.getElementById("grid");
 const statusBar = document.getElementById("status-bar");
+
+function initStoryLogs() {
+  stages.forEach(stage => {
+    storyLogs[stage.key] = { sessions: [] };
+  });
+}
+
+function logGuidedSession(stageKey, sessionData) {
+  if (!storyLogs[stageKey]) {
+    storyLogs[stageKey] = { sessions: [] };
+  }
+  storyLogs[stageKey].sessions.push({
+    session_id: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    started_at: sessionData.started_at,
+    completed_at: new Date().toISOString(),
+    model: sessionData.model,
+    generation_times_ms: sessionData.generation_times_ms,
+    questions: sessionData.questions,
+    q_and_a: sessionData.q_and_a,
+    final_woven_content: sessionData.final_woven_content
+  });
+}
 
 async function init() {
   const stagesRes = await fetch("data/stages.json");
@@ -26,6 +50,8 @@ async function init() {
       status: StoryStore.stageStatus(content),
     };
   });
+
+  initStoryLogs();
 
   render();
   updateStatusBar(StoryStore.completedCount(currentStory));
