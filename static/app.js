@@ -90,12 +90,24 @@ function showStoryView() {
     title.className = 'story-stage-title';
     title.textContent = stage.title;
 
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'story-stage-content';
-    contentDiv.textContent = stage.content || '(empty)';
+    const textarea = document.createElement('textarea');
+    textarea.className = 'story-stage-content-textarea';
+    textarea.value = stage.content;
+    textarea.dataset.stageKey = stage.key;
+
+    let flushSaveTimeout = null;
+    const flushTextarea = () => {
+      clearTimeout(flushSaveTimeout);
+      saveStageContent(stage.key, textarea.value);
+    };
+    textarea.addEventListener('input', () => {
+      clearTimeout(flushSaveTimeout);
+      flushSaveTimeout = setTimeout(() => saveStageContent(stage.key, textarea.value), 500);
+    });
+    textarea.addEventListener('blur', flushTextarea);
 
     stageDiv.appendChild(title);
-    stageDiv.appendChild(contentDiv);
+    stageDiv.appendChild(textarea);
     content.appendChild(stageDiv);
   }
 

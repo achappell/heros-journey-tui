@@ -540,6 +540,26 @@ h1 {
   word-wrap: break-word;
 }
 
+.story-stage-content-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.story-stage-content-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 #grid.story-view-open {
   filter: brightness(0.7);
   pointer-events: none;
