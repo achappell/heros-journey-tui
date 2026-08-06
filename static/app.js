@@ -312,6 +312,14 @@ function render() {
         acceptBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
           const content = guidedState.suggestion;
+          logGuidedSession(guidedState.currentStageKey, {
+            started_at: guidedState.sessionStartTime,
+            model: guidedState.model,
+            generation_times_ms: guidedState.generationTimes,
+            questions: guidedState.questions,
+            q_and_a: guidedState.q_and_a,
+            final_woven_content: content
+          });
           guidedState = null;
           guidedGeneration++;
           await saveStageContent(s.key, content);
@@ -397,12 +405,32 @@ async function saveStageContent(key, content) {
 
 async function startGuidedFlow(key) {
   const generation = ++guidedGeneration;
-  guidedState = { loading: true, questions: [], q_and_a: [], idx: 0, suggestion: null, error: null, fetchingBackground: false, waitingForMore: false, noMoreQuestions: false };
+  guidedState = {
+    loading: true,
+    questions: [],
+    q_and_a: [],
+    idx: 0,
+    suggestion: null,
+    error: null,
+    fetchingBackground: false,
+    waitingForMore: false,
+    noMoreQuestions: false,
+    sessionStartTime: new Date().toISOString(),
+    model: 'mimo-v2.5',
+    generationTimes: { questions: 0, weave: 0 },
+    currentStageKey: key
+  };
+  const modelSelectEl = document.getElementById("model-select");
+  if (modelSelectEl) {
+    guidedState.model = modelSelectEl.value;
+  }
   render();
   const stage = stages.find((s) => s.key === key);
   const storySoFar = getStorySoFar(key);
   try {
+    const questionGenStart = performance.now();
     const questions = await AIClient.generateQuestions(stage.prompt, storySoFar, []);
+    guidedState.generationTimes.questions = Math.round(performance.now() - questionGenStart);
     if (generation !== guidedGeneration) return; // tile was closed or reset while this was in flight
     if (questions.length > 0) {
       guidedState.questions = questions;
@@ -454,7 +482,9 @@ async function doWeave(key) {
   const stage = stages.find((s) => s.key === key);
   const storySoFar = getStorySoFar(key);
   try {
+    const weaveStart = performance.now();
     const suggestion = await AIClient.weaveAnswers(stage.prompt, storySoFar, guidedState.q_and_a);
+    guidedState.generationTimes.weave = Math.round(performance.now() - weaveStart);
     if (generation !== guidedGeneration) return;
     guidedState.suggestion = suggestion;
   } catch (err) {
