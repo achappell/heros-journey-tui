@@ -60,6 +60,8 @@ async function init() {
 
   document.getElementById('logs-export-btn').addEventListener('click', showExportPanel);
   document.getElementById('export-close-btn').addEventListener('click', closeExportPanel);
+  document.getElementById('export-debug-download').addEventListener('click', downloadDebugLog);
+  document.getElementById('export-debug-copy').addEventListener('click', copyDebugLog);
 }
 
 function showExportPanel() {
@@ -70,6 +72,52 @@ function showExportPanel() {
 function closeExportPanel() {
   document.getElementById('export-panel').classList.add('hidden');
   grid.classList.remove('export-open');
+}
+
+function generateDebugLog() {
+  const debugLog = {
+    story_title: currentStory.title,
+    story_key: `story_${Date.now()}`,
+    created_at: new Date().toISOString(),
+    sessions: []
+  };
+
+  for (const [stageKey, stageLog] of Object.entries(storyLogs)) {
+    const stageTemplate = stages.find(s => s.key === stageKey);
+    if (stageLog.sessions.length > 0) {
+      debugLog.sessions.push({
+        stage_key: stageKey,
+        stage_title: stageTemplate ? stageTemplate.title : stageKey,
+        session_data: stageLog.sessions
+      });
+    }
+  }
+
+  return debugLog;
+}
+
+function downloadDebugLog() {
+  const debugLog = generateDebugLog();
+  const json = JSON.stringify(debugLog, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `story_${currentStory.title}_debug_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function copyDebugLog() {
+  const debugLog = generateDebugLog();
+  const json = JSON.stringify(debugLog, null, 2);
+  navigator.clipboard.writeText(json).then(() => {
+    alert('Debug log copied to clipboard!');
+  }).catch(err => {
+    alert('Failed to copy: ' + err.message);
+  });
 }
 
 function initThemeToggle() {
