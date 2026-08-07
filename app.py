@@ -48,7 +48,7 @@ def api_stages():
 def api_models():
     import json
     models = json.loads((DATA_DIR / "models.json").read_text(encoding="utf-8"))
-    return jsonify(models)
+    return jsonify(models["opencode-go"])
 
 
 @app.route("/api/story", methods=["GET"])

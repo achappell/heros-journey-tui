@@ -6,10 +6,12 @@ DATA_DIR = Path(__file__).parent.parent / "static" / "data"
 
 def test_models_json_is_valid():
     models = json.loads((DATA_DIR / "models.json").read_text())
-    assert isinstance(models, list)
-    assert models[0] == "mimo-v2.5"
-    assert "grok-4.5" in models
-    assert len(models) == 22
+    assert isinstance(models, dict)
+    opencode_go_models = models["opencode-go"]
+    assert isinstance(opencode_go_models, list)
+    assert opencode_go_models[0] == "mimo-v2.5"
+    assert "grok-4.5" in opencode_go_models
+    assert len(opencode_go_models) == 22
 
 
 def test_age_guidance_json_has_all_buckets():
