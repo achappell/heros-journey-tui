@@ -883,6 +883,7 @@ function focusStage(key, idx) {
     selectedIdx = idx;
     persistGuidedSession();
     guidedState = null;
+    guidedGeneration++;
     render();
   }
 }
@@ -983,8 +984,8 @@ async function startGuidedFlow(key) {
   try {
     const questionGenStart = performance.now();
     const questions = await AIClient.generateQuestions(stage.prompt, storySoFar, []);
-    guidedState.generationTimes.questions = Math.round(performance.now() - questionGenStart);
     if (generation !== guidedGeneration) return; // tile was closed or reset while this was in flight
+    guidedState.generationTimes.questions = Math.round(performance.now() - questionGenStart);
     if (questions.length > 0) {
       guidedState.questions = questions;
     } else {
@@ -1046,8 +1047,8 @@ async function doWeave(key) {
   try {
     const weaveStart = performance.now();
     const suggestion = await AIClient.weaveAnswers(stage.prompt, storySoFar, guidedState.q_and_a);
-    guidedState.generationTimes.weave = Math.round(performance.now() - weaveStart);
     if (generation !== guidedGeneration) return;
+    guidedState.generationTimes.weave = Math.round(performance.now() - weaveStart);
     pushVersion(suggestion, "generated", null);
   } catch (err) {
     if (generation !== guidedGeneration) return;
