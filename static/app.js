@@ -394,17 +394,56 @@ function render() {
         } else if (guidedState.loading) {
           bodyHtml = `<div class="guided-flow"><div class="guided-loading">AI is thinking...</div></div>`;
         } else if (currentSuggestion()) {
-          bodyHtml = `
-            <div class="guided-flow">
-              <div class="preview-block">
-                <div class="preview-text">${escapeHtml(currentSuggestion())}</div>
-                <div class="preview-actions">
-                  <button class="action-btn accept">Accept</button>
-                  <button class="action-btn reject">Reject</button>
+          const versionCount = guidedState.versions.length;
+          const stepper = versionCount > 1
+            ? `<div class="version-stepper">
+                 <button class="version-nav prev" ${guidedState.versionIdx === 0 ? "disabled" : ""}>‹</button>
+                 <span class="version-label">v${guidedState.versionIdx + 1} of ${versionCount}</span>
+                 <button class="version-nav next" ${guidedState.versionIdx === versionCount - 1 ? "disabled" : ""}>›</button>
+               </div>`
+            : "";
+
+          if (guidedState.uiMode === "editing") {
+            bodyHtml = `
+              <div class="guided-flow">
+                <div class="preview-block">
+                  <textarea class="manual-edit-area">${escapeHtml(currentSuggestion())}</textarea>
+                  <div class="preview-actions">
+                    <button class="action-btn save-edit">Save</button>
+                    <button class="action-btn cancel-edit">Cancel</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          `;
+            `;
+          } else if (guidedState.uiMode === "revising") {
+            bodyHtml = `
+              <div class="guided-flow">
+                <div class="preview-block">
+                  <div class="preview-text">${escapeHtml(currentSuggestion())}</div>
+                  <label class="revise-label">What should change?</label>
+                  <textarea class="revise-feedback" placeholder="e.g. too formal — she's 8"></textarea>
+                  <div class="preview-actions">
+                    <button class="action-btn regenerate">Regenerate</button>
+                    <button class="action-btn cancel-revise">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            `;
+          } else {
+            bodyHtml = `
+              <div class="guided-flow">
+                <div class="preview-block">
+                  <div class="preview-text">${escapeHtml(currentSuggestion())}</div>
+                  ${stepper}
+                  <div class="preview-actions">
+                    <button class="action-btn accept">Accept</button>
+                    <button class="action-btn revise">Revise…</button>
+                    <button class="action-btn edit-manual">Edit myself</button>
+                  </div>
+                </div>
+              </div>
+            `;
+          }
         } else if (guidedState.questions && guidedState.questions.length > 0 && guidedState.idx < guidedState.questions.length) {
           const q = guidedState.questions[guidedState.idx];
           bodyHtml = `
@@ -570,15 +609,100 @@ function render() {
         });
       }
 
-      const rejectBtn = el.querySelector(".reject");
-      if (rejectBtn) {
-        rejectBtn.addEventListener("click", (e) => {
+      const reviseBtn = el.querySelector(".revise");
+      if (reviseBtn) {
+        reviseBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          guidedState = null;
-          guidedGeneration++;
+          guidedState.uiMode = "revising";
           render();
         });
       }
+
+      const cancelReviseBtn = el.querySelector(".cancel-revise");
+      if (cancelReviseBtn) {
+        cancelReviseBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          guidedState.uiMode = "preview";
+          render();
+        });
+      }
+
+      const regenerateBtn = el.querySelector(".regenerate");
+      if (regenerateBtn) {
+        regenerateBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const feedback = el.querySelector(".revise-feedback").value.trim();
+          if (!feedback) return;
+          const generation = guidedGeneration;
+          const previousText = currentSuggestion();
+          guidedState.uiMode = "preview";
+          guidedState.loading = true;
+          render();
+          const stage = stages.find((st) => st.key === s.key);
+          const storySoFar = getStorySoFar(s.key);
+          try {
+            const revised = await AIClient.reviseAnswers(
+              stage.prompt, storySoFar, guidedState.q_and_a, previousText, feedback
+            );
+            if (generation !== guidedGeneration) return;
+            pushVersion(revised, "revised", feedback);
+          } catch (err) {
+            if (generation !== guidedGeneration) return;
+            // A failed revision must never cost an existing draft.
+            guidedState.error = err.message || "Revision failed";
+          } finally {
+            if (generation === guidedGeneration && guidedState) {
+              guidedState.loading = false;
+              persistGuidedSession();
+              render();
+            }
+          }
+        });
+      }
+
+      const editManualBtn = el.querySelector(".edit-manual");
+      if (editManualBtn) {
+        editManualBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          guidedState.uiMode = "editing";
+          render();
+        });
+      }
+
+      const saveEditBtn = el.querySelector(".save-edit");
+      if (saveEditBtn) {
+        saveEditBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const edited = el.querySelector(".manual-edit-area").value.trim();
+          if (edited && edited !== currentSuggestion()) {
+            pushVersion(edited, "manual", null);
+          }
+          guidedState.uiMode = "preview";
+          persistGuidedSession();
+          render();
+        });
+      }
+
+      const cancelEditBtn = el.querySelector(".cancel-edit");
+      if (cancelEditBtn) {
+        cancelEditBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          guidedState.uiMode = "preview";
+          render();
+        });
+      }
+
+      el.querySelectorAll(".version-nav").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const delta = btn.classList.contains("next") ? 1 : -1;
+          const next = guidedState.versionIdx + delta;
+          if (next < 0 || next >= guidedState.versions.length) return;
+          guidedState.versionIdx = next;
+          persistGuidedSession();
+          render();
+        });
+      });
     }
 
     el.addEventListener("click", (e) => {
@@ -646,6 +770,8 @@ async function saveStageContent(key, content) {
   updateStatusBar(stages.filter((s) => s.status === "done").length);
 }
 
+function persistGuidedSession() { /* implemented in Task 5 */ }
+
 // The displayed passage always comes from the versions array — never store it
 // separately, or the two copies drift.
 function currentSuggestion() {
@@ -670,6 +796,7 @@ async function startGuidedFlow(key) {
     idx: 0,
     versions: [],
     versionIdx: 0,
+    uiMode: "preview",
     error: null,
     fetchingBackground: false,
     waitingForMore: false,

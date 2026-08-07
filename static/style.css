@@ -731,3 +731,53 @@ h1 {
 
   .instructions { font-size: 0.65rem; }
 }
+
+.action-btn.revise, .action-btn.edit-manual,
+.action-btn.regenerate, .action-btn.save-edit {
+  background: var(--accent);
+  color: #fff;
+}
+.action-btn.cancel-revise, .action-btn.cancel-edit {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.version-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin: 0.4rem 0;
+}
+.version-label { font-size: 0.7rem; color: var(--text-secondary); }
+.version-nav {
+  background: transparent;
+  border: 1px solid var(--text-secondary);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0 0.4rem;
+  line-height: 1.4;
+}
+.version-nav:disabled { opacity: 0.3; cursor: default; }
+
+.revise-label {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+}
+.revise-feedback, .manual-edit-area {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.3rem;
+  padding: 0.4rem;
+  font: inherit;
+  color: var(--text-primary);
+  background: var(--bg-card);
+  border: 1px solid var(--text-secondary);
+  border-radius: 4px;
+  resize: vertical;
+}
+.revise-feedback { min-height: 3rem; }
+.manual-edit-area { min-height: 8rem; }
