@@ -393,11 +393,11 @@ function render() {
           `;
         } else if (guidedState.loading) {
           bodyHtml = `<div class="guided-flow"><div class="guided-loading">AI is thinking...</div></div>`;
-        } else if (guidedState.suggestion) {
+        } else if (currentSuggestion()) {
           bodyHtml = `
             <div class="guided-flow">
               <div class="preview-block">
-                <div class="preview-text">${escapeHtml(guidedState.suggestion)}</div>
+                <div class="preview-text">${escapeHtml(currentSuggestion())}</div>
                 <div class="preview-actions">
                   <button class="action-btn accept">Accept</button>
                   <button class="action-btn reject">Reject</button>
@@ -552,14 +552,16 @@ function render() {
       if (acceptBtn) {
         acceptBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
-          const content = guidedState.suggestion;
+          const content = currentSuggestion();
           logGuidedSession(guidedState.currentStageKey, {
             started_at: guidedState.sessionStartTime,
             model: guidedState.model,
             generation_times_ms: guidedState.generationTimes,
             questions: guidedState.questions,
             q_and_a: guidedState.q_and_a,
-            final_woven_content: content
+            final_woven_content: content,
+            versions: guidedState.versions,
+            accepted_version_index: guidedState.versionIdx
           });
           guidedState = null;
           guidedGeneration++;
@@ -604,7 +606,7 @@ function render() {
     grid.appendChild(el);
   });
 
-  if (focusedKey !== null && guidedState && !guidedState.loading && guidedState.questions && !guidedState.suggestion) {
+  if (focusedKey !== null && guidedState && !guidedState.loading && guidedState.questions && !currentSuggestion()) {
     const textarea = grid.querySelector(".stage.focused .stage-editor");
     if (textarea) textarea.focus();
   }
@@ -644,6 +646,21 @@ async function saveStageContent(key, content) {
   updateStatusBar(stages.filter((s) => s.status === "done").length);
 }
 
+// The displayed passage always comes from the versions array — never store it
+// separately, or the two copies drift.
+function currentSuggestion() {
+  if (!guidedState || !Array.isArray(guidedState.versions)) return null;
+  const v = guidedState.versions[guidedState.versionIdx];
+  return v ? v.text : null;
+}
+
+function pushVersion(text, source, feedback) {
+  if (!guidedState) return;
+  if (!Array.isArray(guidedState.versions)) guidedState.versions = [];
+  guidedState.versions.push({ text, source, feedback: feedback || null });
+  guidedState.versionIdx = guidedState.versions.length - 1;
+}
+
 async function startGuidedFlow(key) {
   const generation = ++guidedGeneration;
   guidedState = {
@@ -651,7 +668,8 @@ async function startGuidedFlow(key) {
     questions: [],
     q_and_a: [],
     idx: 0,
-    suggestion: null,
+    versions: [],
+    versionIdx: 0,
     error: null,
     fetchingBackground: false,
     waitingForMore: false,
@@ -736,7 +754,7 @@ async function doWeave(key) {
     const suggestion = await AIClient.weaveAnswers(stage.prompt, storySoFar, guidedState.q_and_a);
     guidedState.generationTimes.weave = Math.round(performance.now() - weaveStart);
     if (generation !== guidedGeneration) return;
-    guidedState.suggestion = suggestion;
+    pushVersion(suggestion, "generated", null);
   } catch (err) {
     if (generation !== guidedGeneration) return;
     guidedState.error = err.message || "Network error";
