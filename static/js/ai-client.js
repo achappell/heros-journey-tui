@@ -11,32 +11,77 @@ const AIClient = (() => {
     return ageGuidanceCache[ageRange] || "";
   }
 
-  async function callChat(systemMsg, userMsg) {
-    const settings = Settings.load();
-    if (!settings.apiKey) {
-      throw new Error("No API key set. Open Settings and add your OpenCode Zen key.");
+  const PROVIDER_LABELS = {
+    "opencode-go": "OpenCode Go",
+    anthropic: "Anthropic",
+    openai: "OpenAI",
+  };
+
+  function buildRequest(provider, apiKey, model, systemMsg, userMsg) {
+    if (provider === "anthropic") {
+      return {
+        path: "/anthropic/v1/messages",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: {
+          model,
+          max_tokens: 4096,
+          system: systemMsg,
+          messages: [{ role: "user", content: userMsg }],
+        },
+      };
     }
 
-    const res = await fetch(`${WORKER_URL}/v1/chat/completions`, {
-      method: "POST",
+    // opencode-go and openai both use the OpenAI-compatible chat-completions shape.
+    const routePrefix = provider === "openai" ? "/openai" : "/opencode";
+    return {
+      path: `${routePrefix}/v1/chat/completions`,
       headers: {
-        "Authorization": `Bearer ${settings.apiKey}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: settings.model,
+      body: {
+        model,
         messages: [
           { role: "system", content: systemMsg },
           { role: "user", content: userMsg },
         ],
-      }),
+      },
+    };
+  }
+
+  function extractContent(provider, data) {
+    if (provider === "anthropic") {
+      return data.content[0].text.trim();
+    }
+    return data.choices[0].message.content.trim();
+  }
+
+  async function callChat(systemMsg, userMsg) {
+    const settings = Settings.load();
+    const apiKey = settings.apiKeys[settings.provider];
+    if (!apiKey) {
+      throw new Error(`No API key set. Open Settings and add your ${PROVIDER_LABELS[settings.provider]} key.`);
+    }
+
+    const { path, headers, body } = buildRequest(
+      settings.provider, apiKey, settings.model, systemMsg, userMsg
+    );
+
+    const res = await fetch(`${WORKER_URL}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
     });
 
     const data = await res.json();
     if (!res.ok) {
       throw new Error(data?.error?.message || `API error ${res.status}`);
     }
-    return data.choices[0].message.content.trim();
+    return extractContent(settings.provider, data);
   }
 
   async function generateQuestions(stagePrompt, storySoFar, qAndA) {
