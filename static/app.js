@@ -46,7 +46,9 @@ function logGuidedSession(stageKey, sessionData) {
     generation_times_ms: sessionData.generation_times_ms,
     questions: sessionData.questions,
     q_and_a: sessionData.q_and_a,
-    final_woven_content: sessionData.final_woven_content
+    final_woven_content: sessionData.final_woven_content,
+    versions: sessionData.versions || [],
+    accepted_version_index: sessionData.accepted_version_index
   });
   saveStoryLogs();
 }
@@ -364,7 +366,26 @@ function render() {
     } else {
       let bodyHtml = '';
       if (s.content && !guidedState) {
+        const savedForContent = StoryStore.loadGuidedSession(s.key);
+        let resumeRowHtml = '';
+        if (savedForContent) {
+          const answers = (savedForContent.q_and_a || []).length;
+          const versionCount = (savedForContent.versions || []).length;
+          const versionNote = versionCount
+            ? `, ${versionCount} passage version${versionCount === 1 ? "" : "s"}`
+            : "";
+          resumeRowHtml = `
+            <div class="empty-stage-prompt">
+              <div class="resume-summary">Guided session in progress — ${answers} answer${answers === 1 ? "" : "s"}${versionNote}</div>
+              <div class="preview-actions">
+                <button class="ai-btn resume-btn">Resume</button>
+                <button class="action-btn start-over-btn">Start over…</button>
+              </div>
+            </div>
+          `;
+        }
         bodyHtml = `
+          ${resumeRowHtml}
           <textarea class="stage-editor content-editor">${escapeHtml(s.content)}</textarea>
           <div class="stage-footer">
             <div class="footer-row">
@@ -377,34 +398,102 @@ function render() {
           </div>
         `;
       } else if (!guidedState) {
-        bodyHtml = `
-          <div class="empty-stage-prompt">
-            <p class="empty-hint">No content yet for this stage.</p>
-            <button class="ai-btn start-guided-btn">Start Guided Flow</button>
-          </div>
-        `;
+        const saved = StoryStore.loadGuidedSession(s.key);
+        if (saved) {
+          const answers = (saved.q_and_a || []).length;
+          const versionCount = (saved.versions || []).length;
+          const versionNote = versionCount
+            ? `, ${versionCount} passage version${versionCount === 1 ? "" : "s"}`
+            : "";
+          bodyHtml = `
+            <div class="empty-stage-prompt">
+              <div class="resume-summary">Guided session in progress — ${answers} answer${answers === 1 ? "" : "s"}${versionNote}</div>
+              <div class="preview-actions">
+                <button class="ai-btn resume-btn">Resume</button>
+                <button class="action-btn start-over-btn">Start over…</button>
+              </div>
+            </div>
+          `;
+        } else {
+          bodyHtml = `
+            <div class="empty-stage-prompt">
+              <p class="empty-hint">No content yet for this stage.</p>
+              <button class="ai-btn start-guided-btn">Start Guided Flow</button>
+            </div>
+          `;
+        }
       } else {
         if (guidedState.error) {
+          const hasWork = (guidedState.q_and_a && guidedState.q_and_a.length)
+            || (guidedState.versions && guidedState.versions.length);
           bodyHtml = `
             <div class="guided-flow">
               <div class="preview-error">${escapeHtml(guidedState.error)}</div>
-              <button class="ai-btn retry-btn">Retry</button>
+              <div class="preview-actions">
+                ${hasWork
+                  ? `<button class="ai-btn retry-weave-btn">Try again</button>
+                     <button class="action-btn start-over-btn">Start over…</button>`
+                  : `<button class="ai-btn retry-btn">Retry</button>`}
+              </div>
             </div>
           `;
         } else if (guidedState.loading) {
           bodyHtml = `<div class="guided-flow"><div class="guided-loading">AI is thinking...</div></div>`;
-        } else if (guidedState.suggestion) {
-          bodyHtml = `
-            <div class="guided-flow">
-              <div class="preview-block">
-                <div class="preview-text">${escapeHtml(guidedState.suggestion)}</div>
-                <div class="preview-actions">
-                  <button class="action-btn accept">Accept</button>
-                  <button class="action-btn reject">Reject</button>
+        } else if (currentSuggestion()) {
+          const versionCount = guidedState.versions.length;
+          const stepper = versionCount > 1
+            ? `<div class="version-stepper">
+                 <button class="version-nav prev" ${guidedState.versionIdx === 0 ? "disabled" : ""}>‹</button>
+                 <span class="version-label">v${guidedState.versionIdx + 1} of ${versionCount}</span>
+                 <button class="version-nav next" ${guidedState.versionIdx === versionCount - 1 ? "disabled" : ""}>›</button>
+               </div>`
+            : "";
+
+          if (guidedState.uiMode === "editing") {
+            bodyHtml = `
+              <div class="guided-flow">
+                <div class="preview-block">
+                  <textarea class="manual-edit-area">${escapeHtml(currentSuggestion())}</textarea>
+                  <div class="preview-actions">
+                    <button class="action-btn save-edit">Save</button>
+                    <button class="action-btn cancel-edit">Cancel</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          `;
+            `;
+          } else if (guidedState.uiMode === "revising") {
+            bodyHtml = `
+              <div class="guided-flow">
+                <div class="preview-block">
+                  <div class="preview-text">${escapeHtml(currentSuggestion())}</div>
+                  <label class="revise-label">What should change?</label>
+                  <textarea class="revise-feedback" placeholder="e.g. too formal — she's 8"></textarea>
+                  <div class="preview-actions">
+                    <button class="action-btn regenerate">Regenerate</button>
+                    <button class="action-btn cancel-revise">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            `;
+          } else {
+            const reviseError = guidedState.reviseError
+              ? `<div class="revise-error">${escapeHtml(guidedState.reviseError)}</div>`
+              : "";
+            bodyHtml = `
+              <div class="guided-flow">
+                <div class="preview-block">
+                  <div class="preview-text">${escapeHtml(currentSuggestion())}</div>
+                  ${reviseError}
+                  ${stepper}
+                  <div class="preview-actions">
+                    <button class="action-btn accept">Accept</button>
+                    <button class="action-btn revise">Revise…</button>
+                    <button class="action-btn edit-manual">Edit myself</button>
+                  </div>
+                </div>
+              </div>
+            `;
+          }
         } else if (guidedState.questions && guidedState.questions.length > 0 && guidedState.idx < guidedState.questions.length) {
           const q = guidedState.questions[guidedState.idx];
           bodyHtml = `
@@ -423,6 +512,21 @@ function render() {
           `;
         } else if (guidedState.waitingForMore) {
           bodyHtml = `<div class="guided-flow"><div class="guided-loading">Checking if more info is needed...</div></div>`;
+        } else {
+          // Boundary state: every known question is answered, nothing is
+          // in flight, and there's no passage yet — e.g. a resumed session
+          // that was collapsed right after its last answer. Never leave
+          // this as a blank panel; give the user a way forward.
+          bodyHtml = `
+            <div class="guided-flow">
+              <div class="guided-question">Ready to weave your answers into a passage.</div>
+              <div class="stage-footer">
+                <div class="footer-row" style="justify-content: flex-end;">
+                  <button class="action-btn continue-weave-btn">Weave Story Now</button>
+                </div>
+              </div>
+            </div>
+          `;
         }
       }
 
@@ -469,6 +573,16 @@ function render() {
       if (redoBtn) {
         redoBtn.addEventListener("click", (e) => {
           e.stopPropagation();
+          const saved = StoryStore.loadGuidedSession(s.key);
+          if (saved) {
+            const n = (saved.q_and_a || []).length;
+            const versionCount = (saved.versions || []).length;
+            const versionNote = versionCount
+              ? `, ${versionCount} passage version${versionCount === 1 ? "" : "s"}`
+              : "";
+            if (!confirm(`Discard the guided session in progress (${n} answer${n === 1 ? "" : "s"}${versionNote}) and start a new one?`)) return;
+            StoryStore.clearGuidedSession(s.key);
+          }
           flushContentEditor();
           startGuidedFlow(s.key);
         });
@@ -482,11 +596,63 @@ function render() {
         });
       }
 
+      const resumeBtn = el.querySelector(".resume-btn");
+      if (resumeBtn) {
+        resumeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const saved = StoryStore.loadGuidedSession(s.key);
+          if (!saved) return;
+          guidedGeneration++;
+          // Never trust transient flags from storage — a stored session (even
+          // one written before this guard existed) must not resume mid-fetch
+          // or mid-spinner with nothing actually running behind it.
+          guidedState = {
+            ...saved,
+            loading: false,
+            uiMode: "preview",
+            fetchingBackground: false,
+            waitingForMore: false,
+            reviseError: null,
+            error: null,
+          };
+          render();
+        });
+      }
+
+      const startOverBtn = el.querySelector(".start-over-btn");
+      if (startOverBtn) {
+        startOverBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const saved = StoryStore.loadGuidedSession(s.key);
+          const answers = (saved && saved.q_and_a ? saved.q_and_a.length : 0);
+          const versionCount = (saved && saved.versions ? saved.versions.length : 0);
+          const versionNote = versionCount
+            ? `, ${versionCount} passage version${versionCount === 1 ? "" : "s"}`
+            : "";
+          // The only path that destroys a session — always confirmed.
+          if (!confirm(`Discard ${answers} answer${answers === 1 ? "" : "s"}${versionNote} and start this stage over?`)) return;
+          StoryStore.clearGuidedSession(s.key);
+          guidedState = null;
+          guidedGeneration++;
+          render();
+        });
+      }
+
       const retryBtn = el.querySelector(".retry-btn");
       if (retryBtn) {
         retryBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           startGuidedFlow(s.key);
+        });
+      }
+
+      const retryWeaveBtn = el.querySelector(".retry-weave-btn");
+      if (retryWeaveBtn) {
+        retryWeaveBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          // Re-run the weave with the answers intact — never rebuild the session.
+          guidedState.error = null;
+          await doWeave(s.key);
         });
       }
 
@@ -496,6 +662,14 @@ function render() {
           e.stopPropagation();
           flushContentEditor();
           focusStage(stages[i + 1].key, i + 1);
+        });
+      }
+
+      const continueWeaveBtn = el.querySelector(".continue-weave-btn");
+      if (continueWeaveBtn) {
+        continueWeaveBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await doWeave(s.key);
         });
       }
 
@@ -510,6 +684,7 @@ function render() {
                a: answer
              });
              guidedState.idx++;
+             persistGuidedSession();
           }
           await doWeave(s.key);
         });
@@ -527,6 +702,7 @@ function render() {
             a: answer
           });
           guidedState.idx++;
+          persistGuidedSession();
 
           // trigger background fetch if we aren't already waiting
           fetchMoreQuestionsInBackground(s.key);
@@ -552,15 +728,18 @@ function render() {
       if (acceptBtn) {
         acceptBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
-          const content = guidedState.suggestion;
+          const content = currentSuggestion();
           logGuidedSession(guidedState.currentStageKey, {
             started_at: guidedState.sessionStartTime,
             model: guidedState.model,
             generation_times_ms: guidedState.generationTimes,
             questions: guidedState.questions,
             q_and_a: guidedState.q_and_a,
-            final_woven_content: content
+            final_woven_content: content,
+            versions: guidedState.versions,
+            accepted_version_index: guidedState.versionIdx
           });
+          StoryStore.clearGuidedSession(s.key);
           guidedState = null;
           guidedGeneration++;
           await saveStageContent(s.key, content);
@@ -568,15 +747,103 @@ function render() {
         });
       }
 
-      const rejectBtn = el.querySelector(".reject");
-      if (rejectBtn) {
-        rejectBtn.addEventListener("click", (e) => {
+      const reviseBtn = el.querySelector(".revise");
+      if (reviseBtn) {
+        reviseBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          guidedState = null;
-          guidedGeneration++;
+          guidedState.reviseError = null;
+          guidedState.uiMode = "revising";
           render();
         });
       }
+
+      const cancelReviseBtn = el.querySelector(".cancel-revise");
+      if (cancelReviseBtn) {
+        cancelReviseBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          guidedState.uiMode = "preview";
+          render();
+        });
+      }
+
+      const regenerateBtn = el.querySelector(".regenerate");
+      if (regenerateBtn) {
+        regenerateBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const feedback = el.querySelector(".revise-feedback").value.trim();
+          if (!feedback) return;
+          const generation = guidedGeneration;
+          const previousText = currentSuggestion();
+          guidedState.uiMode = "preview";
+          guidedState.loading = true;
+          render();
+          const stage = stages.find((st) => st.key === s.key);
+          const storySoFar = getStorySoFar(s.key);
+          try {
+            const revised = await AIClient.reviseAnswers(
+              stage.prompt, storySoFar, guidedState.q_and_a, previousText, feedback
+            );
+            if (generation !== guidedGeneration) return;
+            guidedState.reviseError = null;
+            pushVersion(revised, "revised", feedback);
+          } catch (err) {
+            if (generation !== guidedGeneration) return;
+            // Scoped to the preview — must NOT set guidedState.error, whose only
+            // UI exit is a full-session reset that would discard every version.
+            guidedState.reviseError = err.message || "Revision failed";
+          } finally {
+            if (generation === guidedGeneration && guidedState) {
+              guidedState.loading = false;
+              persistGuidedSession();
+              render();
+            }
+          }
+        });
+      }
+
+      const editManualBtn = el.querySelector(".edit-manual");
+      if (editManualBtn) {
+        editManualBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          guidedState.uiMode = "editing";
+          render();
+        });
+      }
+
+      const saveEditBtn = el.querySelector(".save-edit");
+      if (saveEditBtn) {
+        saveEditBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const edited = el.querySelector(".manual-edit-area").value.trim();
+          if (edited && edited !== (currentSuggestion() || "").trim()) {
+            pushVersion(edited, "manual", null);
+          }
+          guidedState.uiMode = "preview";
+          persistGuidedSession();
+          render();
+        });
+      }
+
+      const cancelEditBtn = el.querySelector(".cancel-edit");
+      if (cancelEditBtn) {
+        cancelEditBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          guidedState.uiMode = "preview";
+          render();
+        });
+      }
+
+      el.querySelectorAll(".version-nav").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const delta = btn.classList.contains("next") ? 1 : -1;
+          const next = guidedState.versionIdx + delta;
+          if (next < 0 || next >= guidedState.versions.length) return;
+          guidedState.versionIdx = next;
+          persistGuidedSession();
+          render();
+        });
+      });
     }
 
     el.addEventListener("click", (e) => {
@@ -604,7 +871,7 @@ function render() {
     grid.appendChild(el);
   });
 
-  if (focusedKey !== null && guidedState && !guidedState.loading && guidedState.questions && !guidedState.suggestion) {
+  if (focusedKey !== null && guidedState && !guidedState.loading && guidedState.questions && !currentSuggestion()) {
     const textarea = grid.querySelector(".stage.focused .stage-editor");
     if (textarea) textarea.focus();
   }
@@ -614,7 +881,9 @@ function focusStage(key, idx) {
   if (focusedKey !== key) {
     focusedKey = key;
     selectedIdx = idx;
+    persistGuidedSession();
     guidedState = null;
+    guidedGeneration++;
     render();
   }
 }
@@ -629,6 +898,8 @@ function getStorySoFar(key) {
 }
 
 function collapseFocused() {
+  // Collapsing is not discarding — the session is persisted and resumable.
+  persistGuidedSession();
   focusedKey = null;
   guidedState = null;
   guidedGeneration++;
@@ -644,6 +915,46 @@ async function saveStageContent(key, content) {
   updateStatusBar(stages.filter((s) => s.status === "done").length);
 }
 
+function persistGuidedSession() {
+  if (!guidedState || !guidedState.currentStageKey) return;
+  // Nothing worth resuming yet — don't leave the stage offering to restore an
+  // empty session.
+  const hasWork = (guidedState.q_and_a && guidedState.q_and_a.length)
+    || (guidedState.versions && guidedState.versions.length);
+  if (!hasWork) {
+    StoryStore.clearGuidedSession(guidedState.currentStageKey);
+    return;
+  }
+  // Only durable state survives. Transient flags (in-flight fetches, spinners,
+  // transient errors, sub-views) must never be restored — a resumed session
+  // that inherits them renders a spinner with nothing running behind it.
+  const snapshot = {
+    ...guidedState,
+    loading: false,
+    uiMode: "preview",
+    fetchingBackground: false,
+    waitingForMore: false,
+    reviseError: null,
+    error: null,
+  };
+  StoryStore.saveGuidedSession(guidedState.currentStageKey, snapshot);
+}
+
+// The displayed passage always comes from the versions array — never store it
+// separately, or the two copies drift.
+function currentSuggestion() {
+  if (!guidedState || !Array.isArray(guidedState.versions)) return null;
+  const v = guidedState.versions[guidedState.versionIdx];
+  return v ? v.text : null;
+}
+
+function pushVersion(text, source, feedback) {
+  if (!guidedState) return;
+  if (!Array.isArray(guidedState.versions)) guidedState.versions = [];
+  guidedState.versions.push({ text, source, feedback: feedback || null });
+  guidedState.versionIdx = guidedState.versions.length - 1;
+}
+
 async function startGuidedFlow(key) {
   const generation = ++guidedGeneration;
   guidedState = {
@@ -651,7 +962,9 @@ async function startGuidedFlow(key) {
     questions: [],
     q_and_a: [],
     idx: 0,
-    suggestion: null,
+    versions: [],
+    versionIdx: 0,
+    uiMode: "preview",
     error: null,
     fetchingBackground: false,
     waitingForMore: false,
@@ -671,8 +984,8 @@ async function startGuidedFlow(key) {
   try {
     const questionGenStart = performance.now();
     const questions = await AIClient.generateQuestions(stage.prompt, storySoFar, []);
-    guidedState.generationTimes.questions = Math.round(performance.now() - questionGenStart);
     if (generation !== guidedGeneration) return; // tile was closed or reset while this was in flight
+    guidedState.generationTimes.questions = Math.round(performance.now() - questionGenStart);
     if (questions.length > 0) {
       guidedState.questions = questions;
     } else {
@@ -734,15 +1047,16 @@ async function doWeave(key) {
   try {
     const weaveStart = performance.now();
     const suggestion = await AIClient.weaveAnswers(stage.prompt, storySoFar, guidedState.q_and_a);
-    guidedState.generationTimes.weave = Math.round(performance.now() - weaveStart);
     if (generation !== guidedGeneration) return;
-    guidedState.suggestion = suggestion;
+    guidedState.generationTimes.weave = Math.round(performance.now() - weaveStart);
+    pushVersion(suggestion, "generated", null);
   } catch (err) {
     if (generation !== guidedGeneration) return;
     guidedState.error = err.message || "Network error";
   } finally {
     if (generation === guidedGeneration && guidedState) {
       guidedState.loading = false;
+      persistGuidedSession();
       if (focusedKey === key) render();
     }
   }
