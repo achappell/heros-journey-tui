@@ -46,7 +46,9 @@ function logGuidedSession(stageKey, sessionData) {
     generation_times_ms: sessionData.generation_times_ms,
     questions: sessionData.questions,
     q_and_a: sessionData.q_and_a,
-    final_woven_content: sessionData.final_woven_content
+    final_woven_content: sessionData.final_woven_content,
+    versions: sessionData.versions || [],
+    accepted_version_index: sessionData.accepted_version_index
   });
   saveStoryLogs();
 }
