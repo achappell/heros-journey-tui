@@ -377,12 +377,30 @@ function render() {
           </div>
         `;
       } else if (!guidedState) {
-        bodyHtml = `
-          <div class="empty-stage-prompt">
-            <p class="empty-hint">No content yet for this stage.</p>
-            <button class="ai-btn start-guided-btn">Start Guided Flow</button>
-          </div>
-        `;
+        const saved = StoryStore.loadGuidedSession(s.key);
+        if (saved) {
+          const answers = (saved.q_and_a || []).length;
+          const versionCount = (saved.versions || []).length;
+          const versionNote = versionCount
+            ? `, ${versionCount} passage version${versionCount === 1 ? "" : "s"}`
+            : "";
+          bodyHtml = `
+            <div class="empty-stage-prompt">
+              <div class="resume-summary">Guided session in progress — ${answers} answer${answers === 1 ? "" : "s"}${versionNote}</div>
+              <div class="preview-actions">
+                <button class="ai-btn resume-btn">Resume</button>
+                <button class="action-btn start-over-btn">Start over…</button>
+              </div>
+            </div>
+          `;
+        } else {
+          bodyHtml = `
+            <div class="empty-stage-prompt">
+              <p class="empty-hint">No content yet for this stage.</p>
+              <button class="ai-btn start-guided-btn">Start Guided Flow</button>
+            </div>
+          `;
+        }
       } else {
         if (guidedState.error) {
           bodyHtml = `
@@ -525,6 +543,33 @@ function render() {
         });
       }
 
+      const resumeBtn = el.querySelector(".resume-btn");
+      if (resumeBtn) {
+        resumeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const saved = StoryStore.loadGuidedSession(s.key);
+          if (!saved) return;
+          guidedGeneration++;
+          guidedState = { ...saved, loading: false, uiMode: "preview" };
+          render();
+        });
+      }
+
+      const startOverBtn = el.querySelector(".start-over-btn");
+      if (startOverBtn) {
+        startOverBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const saved = StoryStore.loadGuidedSession(s.key);
+          const answers = (saved && saved.q_and_a ? saved.q_and_a.length : 0);
+          // The only path that destroys a session — always confirmed.
+          if (!confirm(`Discard ${answers} answer${answers === 1 ? "" : "s"} and start this stage over?`)) return;
+          StoryStore.clearGuidedSession(s.key);
+          guidedState = null;
+          guidedGeneration++;
+          render();
+        });
+      }
+
       const retryBtn = el.querySelector(".retry-btn");
       if (retryBtn) {
         retryBtn.addEventListener("click", (e) => {
@@ -553,6 +598,7 @@ function render() {
                a: answer
              });
              guidedState.idx++;
+             persistGuidedSession();
           }
           await doWeave(s.key);
         });
@@ -570,6 +616,7 @@ function render() {
             a: answer
           });
           guidedState.idx++;
+          persistGuidedSession();
 
           // trigger background fetch if we aren't already waiting
           fetchMoreQuestionsInBackground(s.key);
@@ -606,6 +653,7 @@ function render() {
             versions: guidedState.versions,
             accepted_version_index: guidedState.versionIdx
           });
+          StoryStore.clearGuidedSession(s.key);
           guidedState = null;
           guidedGeneration++;
           await saveStageContent(s.key, content);
@@ -747,6 +795,7 @@ function focusStage(key, idx) {
   if (focusedKey !== key) {
     focusedKey = key;
     selectedIdx = idx;
+    persistGuidedSession();
     guidedState = null;
     render();
   }
@@ -762,6 +811,8 @@ function getStorySoFar(key) {
 }
 
 function collapseFocused() {
+  // Collapsing is not discarding — the session is persisted and resumable.
+  persistGuidedSession();
   focusedKey = null;
   guidedState = null;
   guidedGeneration++;
@@ -777,7 +828,13 @@ async function saveStageContent(key, content) {
   updateStatusBar(stages.filter((s) => s.status === "done").length);
 }
 
-function persistGuidedSession() { /* implemented in Task 5 */ }
+function persistGuidedSession() {
+  if (!guidedState || !guidedState.currentStageKey) return;
+  // Don't persist a transient sub-view; resume should always land on the
+  // passage, never mid-edit.
+  const snapshot = { ...guidedState, loading: false, uiMode: "preview" };
+  StoryStore.saveGuidedSession(guidedState.currentStageKey, snapshot);
+}
 
 // The displayed passage always comes from the versions array — never store it
 // separately, or the two copies drift.
@@ -895,6 +952,7 @@ async function doWeave(key) {
   } finally {
     if (generation === guidedGeneration && guidedState) {
       guidedState.loading = false;
+      persistGuidedSession();
       if (focusedKey === key) render();
     }
   }

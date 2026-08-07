@@ -787,3 +787,12 @@ h1 {
   color: var(--status-empty, #b91c1c);
   margin: 0.4rem 0;
 }
+.resume-summary {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.6rem;
+}
+.action-btn.start-over-btn {
+  background: transparent;
+  color: var(--text-secondary);
+}
