@@ -364,7 +364,26 @@ function render() {
     } else {
       let bodyHtml = '';
       if (s.content && !guidedState) {
+        const savedForContent = StoryStore.loadGuidedSession(s.key);
+        let resumeRowHtml = '';
+        if (savedForContent) {
+          const answers = (savedForContent.q_and_a || []).length;
+          const versionCount = (savedForContent.versions || []).length;
+          const versionNote = versionCount
+            ? `, ${versionCount} passage version${versionCount === 1 ? "" : "s"}`
+            : "";
+          resumeRowHtml = `
+            <div class="empty-stage-prompt">
+              <div class="resume-summary">Guided session in progress — ${answers} answer${answers === 1 ? "" : "s"}${versionNote}</div>
+              <div class="preview-actions">
+                <button class="ai-btn resume-btn">Resume</button>
+                <button class="action-btn start-over-btn">Start over…</button>
+              </div>
+            </div>
+          `;
+        }
         bodyHtml = `
+          ${resumeRowHtml}
           <textarea class="stage-editor content-editor">${escapeHtml(s.content)}</textarea>
           <div class="stage-footer">
             <div class="footer-row">
@@ -552,6 +571,16 @@ function render() {
       if (redoBtn) {
         redoBtn.addEventListener("click", (e) => {
           e.stopPropagation();
+          const saved = StoryStore.loadGuidedSession(s.key);
+          if (saved) {
+            const n = (saved.q_and_a || []).length;
+            const versionCount = (saved.versions || []).length;
+            const versionNote = versionCount
+              ? `, ${versionCount} passage version${versionCount === 1 ? "" : "s"}`
+              : "";
+            if (!confirm(`Discard the guided session in progress (${n} answer${n === 1 ? "" : "s"}${versionNote}) and start a new one?`)) return;
+            StoryStore.clearGuidedSession(s.key);
+          }
           flushContentEditor();
           startGuidedFlow(s.key);
         });
