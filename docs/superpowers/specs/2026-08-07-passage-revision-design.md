@@ -41,9 +41,25 @@ stepper:
 - **Version stepper** — only rendered when more than one version exists.
   Steps between attempts.
 
-**There is no discard button.** Abandoning the session is closing the tile
-(Escape), which already clears `guidedState`. A button whose only function
-is deleting the user's work is what this design removes.
+### Nothing discards work by accident
+
+Today `Reject` **and** closing the tile (Escape) both set
+`guidedState = null`. Escape is the worse of the two: it's a reflex
+keystroke, it gives no warning, and losing a session to it is the specific
+frustration that prompted this work.
+
+After this change, **no single keystroke or click can destroy a session**:
+
+- **Escape / closing the tile** collapses the tile and leaves the session
+  intact. Reopening the stage resumes it.
+- **Reopening a stage that has a session** shows a short summary (answers
+  given, versions produced) with **Resume** and **Start over…**.
+- **Start over…** is the only discard path, and it confirms first
+  (`Discard 3 answers?` → Cancel / Discard).
+
+This is what the persistence section below buys beyond crash safety: once
+in-flight state survives a reload, "close the tile" and "throw the work
+away" stop being the same action.
 
 ## State
 
@@ -88,10 +104,13 @@ crash mid-session loses the answers regardless of what the buttons do.
 
 - Checkpoint `guidedState` to `localStorage` under a new `hj_guided_state`
   key (joining the existing `hj_story`, `hj_story_logs`, `hj_settings`, and
-  `hj_theme`) whenever answers or versions change; restore on load and
-  resume the stage in progress.
+  `hj_theme`) whenever answers or versions change; restore on load.
+- Keyed by stage, so a session is resumed only for the stage it belongs to.
+- Cleared on Accept and on a confirmed Start over — the only two ways a
+  session ends.
 - Checkpointing is best-effort: a write failure (quota, private mode) must
-  be caught and ignored rather than breaking the flow.
+  be caught and ignored rather than breaking the flow. A session that
+  cannot be persisted still works in memory for the current page life.
 
 ## Logging
 
@@ -112,7 +131,14 @@ manually against a local static server:
 - Edit myself → Save creates a version; Cancel leaves versions untouched.
 - A failed revision (invalid key) shows an error and preserves existing
   versions.
+- **Escape mid-session, reopen the stage — answers and versions are still
+  there.** This is the regression that motivated the work; verify it
+  explicitly.
 - Refresh mid-session restores answers and versions.
+- Start over… asks for confirmation; Cancel leaves the session untouched,
+  Discard clears it and returns the stage to its pre-session state.
+- Accept clears the stored session so the stage doesn't offer to resume a
+  finished one.
 - Exported log contains the version history and marks which was accepted.
 
 Exercise at least one revise round-trip on a real provider — the
