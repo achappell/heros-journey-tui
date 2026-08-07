@@ -484,6 +484,21 @@ function render() {
           `;
         } else if (guidedState.waitingForMore) {
           bodyHtml = `<div class="guided-flow"><div class="guided-loading">Checking if more info is needed...</div></div>`;
+        } else {
+          // Boundary state: every known question is answered, nothing is
+          // in flight, and there's no passage yet — e.g. a resumed session
+          // that was collapsed right after its last answer. Never leave
+          // this as a blank panel; give the user a way forward.
+          bodyHtml = `
+            <div class="guided-flow">
+              <div class="guided-question">Ready to weave your answers into a passage.</div>
+              <div class="stage-footer">
+                <div class="footer-row" style="justify-content: flex-end;">
+                  <button class="action-btn continue-weave-btn">Weave Story Now</button>
+                </div>
+              </div>
+            </div>
+          `;
         }
       }
 
@@ -550,7 +565,18 @@ function render() {
           const saved = StoryStore.loadGuidedSession(s.key);
           if (!saved) return;
           guidedGeneration++;
-          guidedState = { ...saved, loading: false, uiMode: "preview" };
+          // Never trust transient flags from storage — a stored session (even
+          // one written before this guard existed) must not resume mid-fetch
+          // or mid-spinner with nothing actually running behind it.
+          guidedState = {
+            ...saved,
+            loading: false,
+            uiMode: "preview",
+            fetchingBackground: false,
+            waitingForMore: false,
+            reviseError: null,
+            error: null,
+          };
           render();
         });
       }
@@ -584,6 +610,14 @@ function render() {
           e.stopPropagation();
           flushContentEditor();
           focusStage(stages[i + 1].key, i + 1);
+        });
+      }
+
+      const continueWeaveBtn = el.querySelector(".continue-weave-btn");
+      if (continueWeaveBtn) {
+        continueWeaveBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await doWeave(s.key);
         });
       }
 
@@ -830,9 +864,26 @@ async function saveStageContent(key, content) {
 
 function persistGuidedSession() {
   if (!guidedState || !guidedState.currentStageKey) return;
-  // Don't persist a transient sub-view; resume should always land on the
-  // passage, never mid-edit.
-  const snapshot = { ...guidedState, loading: false, uiMode: "preview" };
+  // Nothing worth resuming yet — don't leave the stage offering to restore an
+  // empty session.
+  const hasWork = (guidedState.q_and_a && guidedState.q_and_a.length)
+    || (guidedState.versions && guidedState.versions.length);
+  if (!hasWork) {
+    StoryStore.clearGuidedSession(guidedState.currentStageKey);
+    return;
+  }
+  // Only durable state survives. Transient flags (in-flight fetches, spinners,
+  // transient errors, sub-views) must never be restored — a resumed session
+  // that inherits them renders a spinner with nothing running behind it.
+  const snapshot = {
+    ...guidedState,
+    loading: false,
+    uiMode: "preview",
+    fetchingBackground: false,
+    waitingForMore: false,
+    reviseError: null,
+    error: null,
+  };
   StoryStore.saveGuidedSession(guidedState.currentStageKey, snapshot);
 }
 
