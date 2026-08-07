@@ -99,6 +99,45 @@ const AIClient = (() => {
     return extractContent(settings.provider, data);
   }
 
+  // Models are asked for a JSON array of questions, but they don't always
+  // deliver valid JSON — unescaped quotes inside a question and stray preamble
+  // are both common. Try strict JSON first, then salvage rather than failing
+  // the whole turn over punctuation.
+  function parseQuestionList(raw) {
+    let content = raw.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+
+    const start = content.indexOf("[");
+    const end = content.lastIndexOf("]");
+    const bracketed = start !== -1 && end > start ? content.slice(start, end + 1) : content;
+
+    try {
+      const parsed = JSON.parse(bracketed);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((q) => typeof q === "string" && q.trim()).map((q) => q.trim());
+      }
+    } catch (err) {
+      /* fall through to salvage */
+    }
+
+    // Salvage 1: pull out quoted strings (survives a missing comma).
+    const quoted = [...bracketed.matchAll(/"([^"\n]{2,})"/g)]
+      .map((m) => m[1].trim())
+      .filter(Boolean);
+    if (quoted.length) return quoted;
+
+    // Salvage 2: treat it as a plain list, one question per line.
+    const lines = content
+      .split("\n")
+      .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").replace(/^["']|["'],?$/g, "").trim())
+      .filter((l) => l.length > 2 && l !== "[" && l !== "]");
+    if (lines.length) return lines;
+
+    // Genuinely empty means "no more questions needed" — a valid outcome.
+    if (/^\[\s*\]$/.test(bracketed)) return [];
+
+    throw new Error(`Could not read questions from the model's reply: ${content.slice(0, 200)}`);
+  }
+
   async function generateQuestions(stagePrompt, storySoFar, qAndA) {
     const settings = Settings.load();
     let systemMsg =
@@ -119,11 +158,7 @@ const AIClient = (() => {
     }
     const userMsg = `Story so far:\n${storySoFar || "(Beginning of the story)"}\n\nStage context: ${stagePrompt}${qaText}`;
 
-    let content = (await callChat(systemMsg, userMsg)).trim();
-    if (content.startsWith("```json")) content = content.slice(7);
-    if (content.startsWith("```")) content = content.slice(3);
-    if (content.endsWith("```")) content = content.slice(0, -3);
-    return JSON.parse(content.trim());
+    return parseQuestionList(await callChat(systemMsg, userMsg));
   }
 
   async function weaveAnswers(stagePrompt, storySoFar, qAndA) {
