@@ -61,7 +61,6 @@ async function init() {
     const content = currentStory.stages[t.key].content;
     return {
       key: t.key,
-      num: String(i + 1),
       title: t.title,
       prompt: t.prompt,
       content,
@@ -351,13 +350,11 @@ function render() {
 
     if (state === "collapsed") {
       el.innerHTML = `
-        <div class="stage-num">${s.num}</div>
         <div class="stage-title">${s.title}</div>
       `;
     } else if (state === "idle") {
       el.innerHTML = `
         <div class="stage-header">
-          <div class="stage-num">${s.num}</div>
           <span class="status-dot ${s.status}"></span>
         </div>
         <div class="stage-title">${s.title}</div>
@@ -431,7 +428,6 @@ function render() {
 
       el.innerHTML = `
         <div class="stage-header">
-          <div class="stage-num">${s.num}</div>
           <span class="status-dot ${s.status}"></span>
           <button class="close-tile-btn" title="Close (Esc)">✕</button>
         </div>

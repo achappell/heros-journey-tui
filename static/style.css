@@ -129,19 +129,14 @@ h1 {
 
 .stage.selected { border-color: var(--accent); }
 
+/* The stage number lives in the title ("1. Ordinary World"), so the header
+   carries only status affordances — keep them right-aligned. */
 .stage-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
+  gap: 0.4rem;
   margin-bottom: 0.4rem;
-}
-
-.stage-num {
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--accent);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--status-empty); }
@@ -178,7 +173,6 @@ h1 {
   justify-content: center;
 }
 
-.stage.collapsed .stage-num { font-size: 0.6rem; color: var(--accent); }
 .stage.collapsed .stage-title { font-size: 0.7rem; color: var(--text-secondary); }
 .stage.collapsed:hover { opacity: 0.8; }
 
