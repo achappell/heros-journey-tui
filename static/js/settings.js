@@ -33,7 +33,12 @@ const Settings = (() => {
   }
 
   function save(partial) {
-    const merged = { ...load(), ...partial };
+    const current = load();
+    const merged = {
+      ...current,
+      ...partial,
+      apiKeys: { ...current.apiKeys, ...(partial.apiKeys || {}) },
+    };
     localStorage.setItem(KEY, JSON.stringify(merged));
     return merged;
   }
