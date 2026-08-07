@@ -56,5 +56,45 @@ const StoryStore = (() => {
     return Object.values(story.stages).filter((s) => stageStatus(s.content) === "done").length;
   }
 
-  return { wordCount, stageStatus, load, save, saveStageContent, completedCount };
+  const GUIDED_KEY = "hj_guided_state";
+
+  // In-flight guided sessions, keyed by stage. Every write is best-effort:
+  // a storage failure must degrade to in-memory, never break the flow.
+  function readGuidedAll() {
+    try {
+      return JSON.parse(localStorage.getItem(GUIDED_KEY) || "{}") || {};
+    } catch (err) {
+      return {};
+    }
+  }
+
+  function saveGuidedSession(stageKey, state) {
+    try {
+      const all = readGuidedAll();
+      all[stageKey] = state;
+      localStorage.setItem(GUIDED_KEY, JSON.stringify(all));
+    } catch (err) {
+      /* quota or private mode — session stays in memory only */
+    }
+  }
+
+  function loadGuidedSession(stageKey) {
+    const all = readGuidedAll();
+    return Object.prototype.hasOwnProperty.call(all, stageKey) ? all[stageKey] : null;
+  }
+
+  function clearGuidedSession(stageKey) {
+    try {
+      const all = readGuidedAll();
+      delete all[stageKey];
+      localStorage.setItem(GUIDED_KEY, JSON.stringify(all));
+    } catch (err) {
+      /* best-effort */
+    }
+  }
+
+  return {
+    wordCount, stageStatus, load, save, saveStageContent, completedCount,
+    saveGuidedSession, loadGuidedSession, clearGuidedSession,
+  };
 })();
