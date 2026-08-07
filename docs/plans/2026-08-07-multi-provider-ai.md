@@ -569,6 +569,8 @@ git commit -m "feat: route Worker relay to opencode-go/openai/anthropic by path 
 
 **Files:** none (verification only)
 
+> **⚠️ DEPLOY-BEFORE-MERGE WARNING:** The Cloudflare Worker (`cloudflare-worker/worker.js`) must be deployed via `wrangler deploy` **before** this branch merges to `main` and GitHub Pages auto-publishes the new frontend. If the frontend goes live first, existing OpenCode Go users will hit the currently-undeployed Worker, which won't recognize the new `/opencode/...` path prefix — breaking a previously-working feature for real users during the gap. Deploy the Worker first, then merge.
+
 - [ ] **Step 1: Full round trip per provider**
 
 With the local static server running and pointed at the deployed Worker (already the case — `WORKER_URL` is a fixed deployed URL, not localhost), for each of the three providers:
