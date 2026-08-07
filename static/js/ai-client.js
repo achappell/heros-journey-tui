@@ -77,7 +77,12 @@ const AIClient = (() => {
       body: JSON.stringify(body),
     });
 
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch (err) {
+      throw new Error(`API error ${res.status}`);
+    }
     if (!res.ok) {
       throw new Error(data?.error?.message || `API error ${res.status}`);
     }
