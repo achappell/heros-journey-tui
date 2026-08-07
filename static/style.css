@@ -781,3 +781,9 @@ h1 {
 }
 .revise-feedback { min-height: 3rem; }
 .manual-edit-area { min-height: 8rem; }
+
+.revise-error {
+  font-size: 0.75rem;
+  color: var(--status-empty, #b91c1c);
+  margin: 0.4rem 0;
+}

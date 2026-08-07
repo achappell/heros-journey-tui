@@ -430,10 +430,14 @@ function render() {
               </div>
             `;
           } else {
+            const reviseError = guidedState.reviseError
+              ? `<div class="revise-error">${escapeHtml(guidedState.reviseError)}</div>`
+              : "";
             bodyHtml = `
               <div class="guided-flow">
                 <div class="preview-block">
                   <div class="preview-text">${escapeHtml(currentSuggestion())}</div>
+                  ${reviseError}
                   ${stepper}
                   <div class="preview-actions">
                     <button class="action-btn accept">Accept</button>
@@ -613,6 +617,7 @@ function render() {
       if (reviseBtn) {
         reviseBtn.addEventListener("click", (e) => {
           e.stopPropagation();
+          guidedState.reviseError = null;
           guidedState.uiMode = "revising";
           render();
         });
@@ -645,11 +650,13 @@ function render() {
               stage.prompt, storySoFar, guidedState.q_and_a, previousText, feedback
             );
             if (generation !== guidedGeneration) return;
+            guidedState.reviseError = null;
             pushVersion(revised, "revised", feedback);
           } catch (err) {
             if (generation !== guidedGeneration) return;
-            // A failed revision must never cost an existing draft.
-            guidedState.error = err.message || "Revision failed";
+            // Scoped to the preview — must NOT set guidedState.error, whose only
+            // UI exit is a full-session reset that would discard every version.
+            guidedState.reviseError = err.message || "Revision failed";
           } finally {
             if (generation === guidedGeneration && guidedState) {
               guidedState.loading = false;
@@ -674,7 +681,7 @@ function render() {
         saveEditBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           const edited = el.querySelector(".manual-edit-area").value.trim();
-          if (edited && edited !== currentSuggestion()) {
+          if (edited && edited !== (currentSuggestion() || "").trim()) {
             pushVersion(edited, "manual", null);
           }
           guidedState.uiMode = "preview";
