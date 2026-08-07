@@ -791,6 +791,8 @@ document.addEventListener("keydown", (e) => {
 async function initSettingsPanel() {
   const toggle = document.getElementById("settings-toggle");
   const panel = document.getElementById("settings-panel");
+  const providerSelect = document.getElementById("provider-select");
+  const apiKeyLabel = document.getElementById("api-key-label");
   const apiKeyInput = document.getElementById("api-key-input");
   const modelSelect = document.getElementById("model-select");
   const ageRangeSelect = document.getElementById("age-range-select");
@@ -798,20 +800,49 @@ async function initSettingsPanel() {
   const importInput = document.getElementById("import-input");
   const closeBtn = document.getElementById("settings-close");
 
-  const settings = Settings.load();
-  apiKeyInput.value = settings.apiKey;
-  ageRangeSelect.value = currentStory.ageRange || settings.ageRange;
+  const PROVIDER_LABELS = {
+    "opencode-go": "OpenCode Go API Key",
+    anthropic: "Anthropic API Key",
+    openai: "OpenAI API Key",
+  };
 
   const modelsRes = await fetch("data/models.json");
-  const models = await modelsRes.json();
-  modelSelect.innerHTML = models.map((m) => `<option value="${m}">${m}</option>`).join("");
-  modelSelect.value = settings.model;
+  const modelsByProvider = await modelsRes.json();
+
+  let settings = Settings.load();
+  ageRangeSelect.value = currentStory.ageRange || settings.ageRange;
+
+  function renderProvider() {
+    providerSelect.value = settings.provider;
+    apiKeyLabel.firstChild.textContent = PROVIDER_LABELS[settings.provider];
+    apiKeyInput.value = settings.apiKeys[settings.provider] || "";
+
+    const models = modelsByProvider[settings.provider] || [];
+    modelSelect.innerHTML = models.map((m) => `<option value="${m}">${m}</option>`).join("");
+    modelSelect.value = models.includes(settings.model) ? settings.model : models[0];
+    if (modelSelect.value) settings = Settings.save({ model: modelSelect.value });
+  }
+
+  renderProvider();
 
   toggle.addEventListener("click", () => panel.classList.toggle("hidden"));
   closeBtn.addEventListener("click", () => panel.classList.add("hidden"));
 
-  apiKeyInput.addEventListener("change", () => Settings.save({ apiKey: apiKeyInput.value }));
-  modelSelect.addEventListener("change", () => Settings.save({ model: modelSelect.value }));
+  providerSelect.addEventListener("change", () => {
+    settings = Settings.save({ provider: providerSelect.value });
+    renderProvider();
+  });
+
+  apiKeyInput.addEventListener("change", () => {
+    settings = Settings.save({
+      apiKeys: { ...settings.apiKeys, [settings.provider]: apiKeyInput.value },
+    });
+  });
+
+  modelSelect.addEventListener("change", () => {
+    settings = Settings.save({ model: modelSelect.value });
+  });
+
   ageRangeSelect.addEventListener("change", () => {
     Settings.save({ ageRange: ageRangeSelect.value });
     currentStory.ageRange = ageRangeSelect.value;
