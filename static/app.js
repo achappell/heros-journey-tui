@@ -714,6 +714,15 @@ async function fetchMoreQuestionsInBackground(key) {
     }
   } catch (err) {
     console.error("Background fetch failed", err);
+    if (generation !== guidedGeneration) return;
+    // If the user is blocked on this prefetch, don't strand them on the
+    // spinner. Weave with the answers we already have — and if the failure
+    // is persistent rather than transient, doWeave surfaces the real error.
+    if (guidedState.waitingForMore) {
+      guidedState.waitingForMore = false;
+      guidedState.fetchingBackground = false;
+      await doWeave(key);
+    }
   } finally {
     if (generation === guidedGeneration && guidedState) guidedState.fetchingBackground = false;
   }
