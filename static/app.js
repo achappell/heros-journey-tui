@@ -403,10 +403,17 @@ function render() {
         }
       } else {
         if (guidedState.error) {
+          const hasWork = (guidedState.q_and_a && guidedState.q_and_a.length)
+            || (guidedState.versions && guidedState.versions.length);
           bodyHtml = `
             <div class="guided-flow">
               <div class="preview-error">${escapeHtml(guidedState.error)}</div>
-              <button class="ai-btn retry-btn">Retry</button>
+              <div class="preview-actions">
+                ${hasWork
+                  ? `<button class="ai-btn retry-weave-btn">Try again</button>
+                     <button class="action-btn start-over-btn">Start over…</button>`
+                  : `<button class="ai-btn retry-btn">Retry</button>`}
+              </div>
             </div>
           `;
         } else if (guidedState.loading) {
@@ -587,8 +594,12 @@ function render() {
           e.stopPropagation();
           const saved = StoryStore.loadGuidedSession(s.key);
           const answers = (saved && saved.q_and_a ? saved.q_and_a.length : 0);
+          const versionCount = (saved && saved.versions ? saved.versions.length : 0);
+          const versionNote = versionCount
+            ? `, ${versionCount} passage version${versionCount === 1 ? "" : "s"}`
+            : "";
           // The only path that destroys a session — always confirmed.
-          if (!confirm(`Discard ${answers} answer${answers === 1 ? "" : "s"} and start this stage over?`)) return;
+          if (!confirm(`Discard ${answers} answer${answers === 1 ? "" : "s"}${versionNote} and start this stage over?`)) return;
           StoryStore.clearGuidedSession(s.key);
           guidedState = null;
           guidedGeneration++;
@@ -601,6 +612,16 @@ function render() {
         retryBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           startGuidedFlow(s.key);
+        });
+      }
+
+      const retryWeaveBtn = el.querySelector(".retry-weave-btn");
+      if (retryWeaveBtn) {
+        retryWeaveBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          // Re-run the weave with the answers intact — never rebuild the session.
+          guidedState.error = null;
+          await doWeave(s.key);
         });
       }
 
