@@ -1,4 +1,17 @@
-const UPSTREAM = "https://opencode.ai/zen/go";
+const ROUTES = {
+  "/opencode": "https://opencode.ai/zen/go",
+  "/openai": "https://api.openai.com",
+  "/anthropic": "https://api.anthropic.com",
+};
+
+function matchRoute(pathname) {
+  for (const prefix of Object.keys(ROUTES)) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      return { prefix, host: ROUTES[prefix] };
+    }
+  }
+  return null;
+}
 
 export default {
   async fetch(request) {
@@ -6,20 +19,34 @@ export default {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "authorization, content-type",
+      "Access-Control-Allow-Headers": "authorization, x-api-key, anthropic-version, content-type",
     };
 
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
-    const upstreamUrl = `${UPSTREAM}${url.pathname}${url.search}`;
+    const route = matchRoute(url.pathname);
+    if (!route) {
+      return new Response(JSON.stringify({ error: { message: "Unknown route" } }), {
+        status: 404,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    const upstreamPath = url.pathname.slice(route.prefix.length);
+    const upstreamUrl = `${route.host}${upstreamPath}${url.search}`;
+
+    const forwardedHeaders = new Headers();
+    for (const [key, value] of request.headers) {
+      if (["authorization", "x-api-key", "anthropic-version", "content-type"].includes(key.toLowerCase())) {
+        forwardedHeaders.set(key, value);
+      }
+    }
+
     const upstreamRequest = new Request(upstreamUrl, {
       method: request.method,
-      headers: {
-        "Authorization": request.headers.get("Authorization") || "",
-        "Content-Type": request.headers.get("Content-Type") || "application/json",
-      },
+      headers: forwardedHeaders,
       body: request.method === "GET" ? undefined : await request.text(),
     });
 

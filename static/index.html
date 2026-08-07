@@ -25,7 +25,14 @@
 
   <div id="settings-panel" class="settings-panel hidden">
     <h2>Settings</h2>
-    <label>OpenCode Zen API Key
+    <label>Provider
+      <select id="provider-select">
+        <option value="opencode-go">OpenCode Go</option>
+        <option value="anthropic">Anthropic (Claude)</option>
+        <option value="openai">OpenAI (ChatGPT)</option>
+      </select>
+    </label>
+    <label id="api-key-label">OpenCode Go API Key
       <input type="password" id="api-key-input" placeholder="sk-...">
     </label>
     <label>Model
