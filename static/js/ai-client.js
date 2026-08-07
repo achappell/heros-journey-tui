@@ -178,5 +178,28 @@ const AIClient = (() => {
     return callChat(systemMsg, userMsg);
   }
 
-  return { generateQuestions, weaveAnswers };
+  async function reviseAnswers(stagePrompt, storySoFar, qAndA, previousText, feedback) {
+    const settings = Settings.load();
+    let systemMsg =
+      "You are an expert storyteller. You previously wrote a narrative passage for a stage of the user's Hero's Journey story, " +
+      "and the user has asked for changes. " +
+      "Revise the passage according to their feedback while preserving everything they did not ask you to change — " +
+      "keep the same events, characters, and details unless the feedback calls for altering them. " +
+      "Output only the revised narrative text, no extra commentary and no explanation of what you changed.";
+
+    const guidance = await getAgeGuidance(settings.ageRange);
+    if (guidance) systemMsg = `${guidance}\n\n${systemMsg}`;
+
+    const qaText = qAndA.map((item) => `Q: ${item.q}\nA: ${item.a}`).join("\n");
+    const userMsg =
+      `Story so far:\n${storySoFar || "(Beginning of the story)"}\n\n` +
+      `Stage context: ${stagePrompt}\n\n` +
+      `User's Q&A:\n${qaText}\n\n` +
+      `The passage you wrote:\n${previousText}\n\n` +
+      `What the user wants changed:\n${feedback}`;
+
+    return callChat(systemMsg, userMsg);
+  }
+
+  return { generateQuestions, weaveAnswers, reviseAnswers };
 })();
