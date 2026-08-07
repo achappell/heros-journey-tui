@@ -40,6 +40,13 @@ const Settings = (() => {
       apiKeys: { ...current.apiKeys, ...(partial.apiKeys || {}) },
     };
     localStorage.setItem(KEY, JSON.stringify(merged));
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'change_settings', {
+        provider: merged.provider,
+        model: merged.model,
+        age_range: merged.ageRange
+      });
+    }
     return merged;
   }
 

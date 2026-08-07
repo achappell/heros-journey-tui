@@ -12,6 +12,12 @@ const STORY_LOGS_KEY = "hj_story_logs";
 const grid = document.getElementById("grid");
 const statusBar = document.getElementById("status-bar");
 
+function trackAnalyticsEvent(eventName, params = {}) {
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', eventName, params);
+  }
+}
+
 function initStoryLogs() {
   const raw = localStorage.getItem(STORY_LOGS_KEY);
   let parsed = null;
@@ -101,6 +107,7 @@ function closeExportPanel() {
 }
 
 function showStoryView() {
+  trackAnalyticsEvent('view_story');
   const content = document.getElementById('story-view-content');
   content.innerHTML = '';
 
@@ -165,6 +172,7 @@ function generateDebugLog() {
 }
 
 function downloadDebugLog() {
+  trackAnalyticsEvent('export_data', { type: 'debug_log', method: 'download' });
   const debugLog = generateDebugLog();
   const json = JSON.stringify(debugLog, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
@@ -179,6 +187,7 @@ function downloadDebugLog() {
 }
 
 function copyDebugLog() {
+  trackAnalyticsEvent('export_data', { type: 'debug_log', method: 'copy' });
   const debugLog = generateDebugLog();
   const json = JSON.stringify(debugLog, null, 2);
   navigator.clipboard.writeText(json).then(() => {
@@ -229,6 +238,7 @@ function generateQAExport(format = 'markdown') {
 
 function downloadQAExport() {
   const format = document.querySelector('input[name="qa-format"]:checked').value;
+  trackAnalyticsEvent('export_data', { type: 'qa_export', method: 'download', format });
   const content = generateQAExport(format);
   const ext = format === 'markdown' ? 'md' : 'txt';
   const blob = new Blob([content], { type: 'text/plain' });
@@ -244,6 +254,7 @@ function downloadQAExport() {
 
 function copyQAExport() {
   const format = document.querySelector('input[name="qa-format"]:checked').value;
+  trackAnalyticsEvent('export_data', { type: 'qa_export', method: 'copy', format });
   const content = generateQAExport(format);
   navigator.clipboard.writeText(content).then(() => {
     alert('Q&A export copied to clipboard!');
@@ -282,6 +293,7 @@ function generateStoryExport(format = 'markdown') {
 
 function downloadStoryExport() {
   const format = document.querySelector('input[name="story-format"]:checked').value;
+  trackAnalyticsEvent('export_data', { type: 'story_export', method: 'download', format });
   const content = generateStoryExport(format);
   const ext = format === 'markdown' ? 'md' : 'txt';
   const blob = new Blob([content], { type: 'text/plain' });
@@ -297,6 +309,7 @@ function downloadStoryExport() {
 
 function copyStoryExport() {
   const format = document.querySelector('input[name="story-format"]:checked').value;
+  trackAnalyticsEvent('export_data', { type: 'story_export', method: 'copy', format });
   const content = generateStoryExport(format);
   navigator.clipboard.writeText(content).then(() => {
     alert('Story export copied to clipboard!');
@@ -912,6 +925,7 @@ async function saveStageContent(key, content) {
   stage.content = content;
   stage.wordCount = result.wordCount;
   stage.status = result.status;
+  trackAnalyticsEvent('save_stage', { stage_key: key, word_count: result.wordCount, status: result.status });
   updateStatusBar(stages.filter((s) => s.status === "done").length);
 }
 
@@ -956,6 +970,7 @@ function pushVersion(text, source, feedback) {
 }
 
 async function startGuidedFlow(key) {
+  trackAnalyticsEvent('start_guided_session', { stage_key: key });
   const generation = ++guidedGeneration;
   guidedState = {
     loading: true,
@@ -996,6 +1011,7 @@ async function startGuidedFlow(key) {
     if (generation !== guidedGeneration) return;
     guidedState.error = err.message || "Network error";
     guidedState.loading = false;
+    trackAnalyticsEvent('ai_error', { stage_key: key, action: 'generate_questions', error_message: guidedState.error });
   }
   if (focusedKey === key) render();
 }
@@ -1050,9 +1066,11 @@ async function doWeave(key) {
     if (generation !== guidedGeneration) return;
     guidedState.generationTimes.weave = Math.round(performance.now() - weaveStart);
     pushVersion(suggestion, "generated", null);
+    trackAnalyticsEvent('weave_story', { stage_key: key, model: guidedState.model });
   } catch (err) {
     if (generation !== guidedGeneration) return;
     guidedState.error = err.message || "Network error";
+    trackAnalyticsEvent('ai_error', { stage_key: key, action: 'weave_story', error_message: guidedState.error });
   } finally {
     if (generation === guidedGeneration && guidedState) {
       guidedState.loading = false;
