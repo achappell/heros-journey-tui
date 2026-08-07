@@ -27,8 +27,10 @@ const AIClient = (() => {
           "Content-Type": "application/json",
         },
         body: {
+          // Current Claude models think by default, and thinking tokens count
+          // against max_tokens — leave headroom so a long weave isn't truncated.
           model,
-          max_tokens: 4096,
+          max_tokens: 8192,
           system: systemMsg,
           messages: [{ role: "user", content: userMsg }],
         },
@@ -55,9 +57,17 @@ const AIClient = (() => {
 
   function extractContent(provider, data) {
     if (provider === "anthropic") {
-      return data.content[0].text.trim();
+      // Thinking is on by default on current Claude models, and thinking blocks
+      // come first — scan for the text block rather than assuming content[0].
+      const block = (data.content || []).find((b) => b.type === "text");
+      if (!block) throw new Error("Anthropic returned no text content.");
+      return block.text.trim();
     }
-    return data.choices[0].message.content.trim();
+    const message = data.choices?.[0]?.message;
+    if (!message || typeof message.content !== "string") {
+      throw new Error("Provider returned no text content.");
+    }
+    return message.content.trim();
   }
 
   async function callChat(systemMsg, userMsg) {
