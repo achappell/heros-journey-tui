@@ -5,6 +5,7 @@ const Settings = (() => {
     provider: "opencode-go",
     apiKeys: { "opencode-go": "", anthropic: "", openai: "" },
     model: "mimo-v2.5",
+    effort: "default",
     ageRange: "adult",
   };
 
@@ -44,6 +45,7 @@ const Settings = (() => {
       window.gtag('event', 'change_settings', {
         provider: merged.provider,
         model: merged.model,
+        effort: merged.effort,
         age_range: merged.ageRange
       });
     }

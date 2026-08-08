@@ -1132,6 +1132,7 @@ async function initSettingsPanel() {
   const apiKeyLabel = document.getElementById("api-key-label");
   const apiKeyInput = document.getElementById("api-key-input");
   const modelSelect = document.getElementById("model-select");
+  const effortSelect = document.getElementById("effort-select");
   const ageRangeSelect = document.getElementById("age-range-select");
   const exportBtn = document.getElementById("export-btn");
   const importInput = document.getElementById("import-input");
@@ -1158,6 +1159,15 @@ async function initSettingsPanel() {
     modelSelect.innerHTML = models.map((m) => `<option value="${m}">${m}</option>`).join("");
     modelSelect.value = models.includes(settings.model) ? settings.model : models[0];
     if (modelSelect.value) settings = Settings.save({ model: modelSelect.value });
+
+    // Each provider names its own effort levels — fall back to Default when the
+    // stored value doesn't exist on the newly selected provider.
+    const levels = AIClient.EFFORT_LEVELS[settings.provider] || [];
+    effortSelect.innerHTML =
+      `<option value="default">Default</option>` +
+      levels.map((l) => `<option value="${l}">${l}</option>`).join("");
+    effortSelect.value = levels.includes(settings.effort) ? settings.effort : "default";
+    settings = Settings.save({ effort: effortSelect.value });
   }
 
   renderProvider();
@@ -1178,6 +1188,10 @@ async function initSettingsPanel() {
 
   modelSelect.addEventListener("change", () => {
     settings = Settings.save({ model: modelSelect.value });
+  });
+
+  effortSelect.addEventListener("change", () => {
+    settings = Settings.save({ effort: effortSelect.value });
   });
 
   ageRangeSelect.addEventListener("change", () => {

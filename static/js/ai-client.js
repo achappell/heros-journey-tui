@@ -17,7 +17,26 @@ const AIClient = (() => {
     openai: "OpenAI",
   };
 
-  function buildRequest(provider, apiKey, model, systemMsg, userMsg) {
+  // Effort is spelled differently per provider: Anthropic takes it inside
+  // output_config, the OpenAI-compatible shape takes a top-level
+  // reasoning_effort. "default" means "don't send it at all".
+  // Verified against each provider by probing the relay: "minimal" is rejected
+  // by both OpenAI-compatible providers, "max" by OpenAI, and "xhigh"/"max" by
+  // opencode-go's mimo models. These lists are the safe intersection.
+  const EFFORT_LEVELS = {
+    anthropic: ["low", "medium", "high", "xhigh", "max"],
+    openai: ["low", "medium", "high", "xhigh"],
+    "opencode-go": ["low", "medium", "high"],
+  };
+
+  function effortFor(provider, effort) {
+    if (!effort || effort === "default") return null;
+    return (EFFORT_LEVELS[provider] || []).includes(effort) ? effort : null;
+  }
+
+  function buildRequest(provider, apiKey, model, effort, systemMsg, userMsg) {
+    const level = effortFor(provider, effort);
+
     if (provider === "anthropic") {
       return {
         path: "/anthropic/v1/messages",
@@ -31,6 +50,7 @@ const AIClient = (() => {
           // against max_tokens — leave headroom so a long weave isn't truncated.
           model,
           max_tokens: 8192,
+          ...(level ? { output_config: { effort: level } } : {}),
           system: systemMsg,
           messages: [{ role: "user", content: userMsg }],
         },
@@ -47,6 +67,7 @@ const AIClient = (() => {
       },
       body: {
         model,
+        ...(level ? { reasoning_effort: level } : {}),
         messages: [
           { role: "system", content: systemMsg },
           { role: "user", content: userMsg },
@@ -70,6 +91,14 @@ const AIClient = (() => {
     return message.content.trim();
   }
 
+  // Effort support is per-model, not per-provider — non-reasoning models
+  // (claude-haiku-4-5, gpt-4.1, gpt-4o-mini) reject the parameter outright.
+  // All three providers name it in the rejection message.
+  function isEffortRejection(status, data) {
+    if (status !== 400) return false;
+    return /effort/i.test(data?.error?.message || "");
+  }
+
   async function callChat(systemMsg, userMsg) {
     const settings = Settings.load();
     const apiKey = settings.apiKeys[settings.provider];
@@ -77,22 +106,34 @@ const AIClient = (() => {
       throw new Error(`No API key set. Open Settings and add your ${PROVIDER_LABELS[settings.provider]} key.`);
     }
 
-    const { path, headers, body } = buildRequest(
-      settings.provider, apiKey, settings.model, systemMsg, userMsg
-    );
+    async function send(effort) {
+      const { path, headers, body } = buildRequest(
+        settings.provider, apiKey, settings.model, effort, systemMsg, userMsg
+      );
 
-    const res = await fetch(`${WORKER_URL}${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
+      const res = await fetch(`${WORKER_URL}${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
 
-    let data;
-    try {
-      data = await res.json();
-    } catch (err) {
-      throw new Error(`API error ${res.status}`);
+      let data;
+      try {
+        data = await res.json();
+      } catch (err) {
+        throw new Error(`API error ${res.status}`);
+      }
+      return { res, data };
     }
+
+    let { res, data } = await send(settings.effort);
+
+    // Rather than fail the stage, drop the effort hint and take the model's
+    // default. Only retried once, and only for this specific rejection.
+    if (isEffortRejection(res.status, data)) {
+      ({ res, data } = await send(null));
+    }
+
     if (!res.ok) {
       throw new Error(data?.error?.message || `API error ${res.status}`);
     }
@@ -201,5 +242,5 @@ const AIClient = (() => {
     return callChat(systemMsg, userMsg);
   }
 
-  return { generateQuestions, weaveAnswers, reviseAnswers };
+  return { generateQuestions, weaveAnswers, reviseAnswers, EFFORT_LEVELS };
 })();
